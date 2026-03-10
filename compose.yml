@@ -8,4 +8,3 @@ services:
     volumes:
       - .:/workspace
     working_dir: /workspace
-    command: ["./scripts/build.sh"]

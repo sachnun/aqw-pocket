@@ -33,4 +33,4 @@ signing.env.*
 .idea/
 
 # Docker (avoid recursive context)
-docker-compose.yml
+compose.yml
