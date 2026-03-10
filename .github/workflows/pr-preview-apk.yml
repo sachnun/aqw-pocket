@@ -1,0 +1,175 @@
+name: PR Preview APK
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  merge_group:
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_IMAGE: aqw-pocket-build
+
+jobs:
+  prepare:
+    name: Prepare Preview Metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      app_version: ${{ steps.meta.outputs.app_version }}
+      tag_version: ${{ steps.meta.outputs.tag_version }}
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      apk_name: ${{ steps.meta.outputs.apk_name }}
+    steps:
+      - name: Compute preview metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_GROUP_SHA: ${{ github.event.merge_group.head_sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA_VALUE: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            SHORT_SHA="${PR_HEAD_SHA:0:7}"
+            TAG_VERSION="pr-${PR_NUMBER}-${SHORT_SHA}"
+          else
+            HEAD_SHA="${MERGE_GROUP_SHA:-$GITHUB_SHA_VALUE}"
+            SHORT_SHA="${HEAD_SHA:0:7}"
+            TAG_VERSION="merge-group-${SHORT_SHA}"
+          fi
+
+          APP_VERSION="1.0.${RUN_NUMBER}"
+          APK_NAME="AQWPocket-${TAG_VERSION}.apk"
+          ARTIFACT_NAME="$APK_NAME"
+
+          echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
+  build_universal_preview:
+    name: Build Universal Preview APK
+    runs-on: ubuntu-latest
+    needs: prepare
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate preview signing keystore
+        run: |
+          mkdir -p .signing
+          docker run --rm \
+            -v "$PWD/.signing:/signing" \
+            "$DOCKER_IMAGE" \
+            keytool -genkeypair \
+              -alias preview \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 3650 \
+              -keystore /signing/pr-preview.jks \
+              -storepass previewpass \
+              -keypass previewpass \
+              -dname "CN=AQW Pocket Preview, OU=CI, O=GitHub Actions, L=Unknown, S=Unknown, C=US"
+
+      - name: Inject preview version into source files
+        run: |
+          sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
+          sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app.xml
+          sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app.xml
+
+      - name: Build AAB preview
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -e KEYSTORE_PATH=/workspace/.signing/pr-preview.jks \
+            -e KEY_ALIAS=preview \
+            -e KEYSTORE_PASS=previewpass \
+            -e KEY_PASS=previewpass \
+            "$DOCKER_IMAGE" \
+            ./scripts/build.sh --target-aab
+
+      - name: Normalize AAB native library compression
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$DOCKER_IMAGE" \
+            java scripts/tools.java normalize-aab build/AQWPocket.aab build/AQWPocket-normalized.aab
+
+      - name: Build universal APK from normalized AAB
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$DOCKER_IMAGE" \
+            sh -c "
+              java -jar \$BUNDLETOOL_JAR build-apks \
+                --bundle=build/AQWPocket-normalized.aab \
+                --output=build/AQWPocket.apks \
+                --mode=universal \
+                --ks=/workspace/.signing/pr-preview.jks \
+                --ks-key-alias=preview \
+                --ks-pass=pass:previewpass \
+                --key-pass=pass:previewpass &&
+              unzip -p build/AQWPocket.apks universal.apk > \"build/${{ needs.prepare.outputs.apk_name }}\" &&
+              rm -f build/AQWPocket.apks build/AQWPocket-normalized.aab
+            "
+
+      - name: Inspect preview APK
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$DOCKER_IMAGE" \
+            java scripts/tools.java inspect-native-libs "build/${{ needs.prepare.outputs.apk_name }}"
+
+      - name: Clean signing keystore
+        if: always()
+        run: rm -rf .signing
+
+      - name: Upload preview APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.prepare.outputs.artifact_name }}
+          path: build/${{ needs.prepare.outputs.apk_name }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  preview_status:
+    name: PR Preview APK
+    runs-on: ubuntu-latest
+    needs: [build_universal_preview]
+    if: always()
+    steps:
+      - name: Fail when preview pipeline fails
+        run: |
+          if [ "${{ needs.build_universal_preview.result }}" != "success" ]; then
+            echo "Preview APK build failed."
+            exit 1
+          fi
+
+          echo "Preview APK build succeeded."

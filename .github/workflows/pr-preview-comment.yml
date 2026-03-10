@@ -1,0 +1,206 @@
+name: PR Preview Comment
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_run:
+    workflows:
+      - PR Preview APK
+    types:
+      - completed
+
+jobs:
+  mark_building:
+    name: Mark Preview Building
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Upsert building comment
+        uses: actions/github-script@v8
+        env:
+          COMMENT_MARKER: '<!-- aqw-pocket:pr-preview -->'
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHECKS_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}/checks
+        with:
+          script: |
+            const marker = process.env.COMMENT_MARKER;
+            const issueNumber = Number(process.env.PR_NUMBER);
+            const shortSha = process.env.HEAD_SHA.slice(0, 7);
+            const body = [
+              marker,
+              '## APK Preview',
+              '',
+              '**Status:** Building...',
+              `Commit: \`${shortSha}\``,
+              '',
+              `- Checks: ${process.env.CHECKS_URL}`,
+              '- Artifact: preparing preview build',
+              '- Merge gate: waiting for `PR Preview APK`',
+              '',
+              'This comment updates automatically whenever the PR changes.',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+  finalize_comment:
+    name: Publish Preview Result Comment
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Upsert final preview comment
+        uses: actions/github-script@v8
+        env:
+          COMMENT_MARKER: '<!-- aqw-pocket:pr-preview -->'
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        with:
+          script: |
+            const marker = process.env.COMMENT_MARKER;
+            const run = context.payload.workflow_run;
+            const linkedPr = run.pull_requests && run.pull_requests[0];
+
+            if (!linkedPr) {
+              core.info('No pull request is associated with this workflow run. Skipping comment update.');
+              return;
+            }
+
+            const issueNumber = linkedPr.number;
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issueNumber,
+            });
+
+            if (pr.head.sha !== run.head_sha) {
+              core.info(`Skipping stale workflow run for ${run.head_sha}; PR head is ${pr.head.sha}.`);
+              return;
+            }
+
+            const { data: artifactData } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+
+            const artifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
+            const buildJob = jobs.jobs.find((job) => job.name === 'Build Universal Preview APK');
+            const shortSha = run.head_sha.slice(0, 7);
+            const statusMap = {
+              success: 'Ready',
+              failure: 'Failed',
+              cancelled: 'Cancelled',
+              timed_out: 'Timed Out',
+              action_required: 'Action Required',
+            };
+            const conclusion = run.conclusion || 'neutral';
+            const statusText = statusMap[conclusion] || 'Completed';
+            const runUrl = run.html_url;
+            const buildUrl = buildJob ? buildJob.html_url : runUrl;
+            const artifactUrl = artifact
+              ? `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}`
+              : null;
+
+            let bodyLines;
+            if (conclusion === 'success' && artifactUrl) {
+              bodyLines = [
+                marker,
+                '## APK Preview',
+                '',
+                '**Status:** Ready',
+                `Commit: \`${shortSha}\``,
+                '',
+                `- [Download APK](${artifactUrl})`,
+                `- [Build log](${buildUrl})`,
+                '- Merge gate: `PR Preview APK` passed',
+                '- Artifact expires in 7 days.',
+                '',
+                'This comment updates automatically whenever the PR changes.',
+              ];
+            } else {
+              bodyLines = [
+                marker,
+                '## APK Preview',
+                '',
+                `**Status:** ${statusText}`,
+                `Commit: \`${shortSha}\``,
+                '',
+                `- [Build log](${buildUrl})`,
+              ];
+
+              if (artifactUrl) {
+                bodyLines.push(`- [Last artifact](${artifactUrl})`);
+              }
+
+              bodyLines.push(
+                '- Merge gate: `PR Preview APK` must pass before merge',
+                'Build previews must pass before this PR can be merged.',
+                '',
+                'This comment updates automatically whenever the PR changes.',
+              );
+            }
+
+            const body = bodyLines.join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
