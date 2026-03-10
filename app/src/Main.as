@@ -8,7 +8,10 @@ package {
 	import flash.display.Sprite;
 	import flash.events.Event;
 	import flash.events.IOErrorEvent;
+	import flash.events.KeyboardEvent;
 	import flash.events.ProgressEvent;
+	import flash.media.SoundMixer;
+	import flash.media.SoundTransform;
 	import flash.net.URLLoader;
 	import flash.net.URLLoaderDataFormat;
 	import flash.net.URLRequest;
@@ -17,10 +20,17 @@ package {
 	import flash.text.TextField;
 	import flash.text.TextFormat;
 	import flash.text.TextFormatAlign;
+	import flash.ui.Keyboard;
 	import flash.utils.ByteArray;
+	import flash.utils.getTimer;
+
+	import core.AvatarMC;
+	import core.Game;
 
 	import ui.UpdateBanner;
 	import input.GamePad;
+	import core.ForegroundService;
+	import bot.BotController;
 
 	[SWF(width="960", height="550", frameRate="30", backgroundColor="#000")]
 	public dynamic class Main extends MovieClip {
@@ -38,6 +48,7 @@ package {
 		private static const STATE_BACKGROUND:int = 0;
 		private static const STATE_GAME:int = 1;
 		private static const STATE_READY:int = 2;
+		private static const BACK_EXIT_WINDOW_MS:int = 1800;
 
 		private var loading:TextField;
 		private var logField:TextField;
@@ -49,11 +60,28 @@ package {
 		private var titleFile:String;
 		private var backgroundFile:String;
 		private var loadState:int = STATE_BACKGROUND;
+		private var foregroundService:ForegroundService;
+		private var isForegroundServiceRunning:Boolean = false;
+		private var lastBackPressAt:int = -BACK_EXIT_WINDOW_MS;
+		private var backgroundAudioMuted:Boolean = false;
+		private var masterVolumeBeforeBackground:Number = 1.0;
 
 		private var container: Sprite = new Sprite();
 
+		public const avatarMCCore: AvatarMC = new AvatarMC(this);
+		public const gameCore: Game = new Game(this);
+
 		public function Main() {
+			foregroundService = new ForegroundService();
+			const permissionRequested:Boolean = foregroundService.requestNotificationPermission();
+
 			NativeApplication.nativeApplication.systemIdleMode = SystemIdleMode.KEEP_AWAKE;
+			NativeApplication.nativeApplication.autoExit = false;
+			NativeApplication.nativeApplication.executeInBackground = true;
+			NativeApplication.nativeApplication.addEventListener(Event.ACTIVATE, onAppActivate);
+			NativeApplication.nativeApplication.addEventListener(Event.DEACTIVATE, onAppDeactivate);
+			NativeApplication.nativeApplication.addEventListener(Event.EXITING, onAppExiting);
+			addEventListener(Event.ADDED_TO_STAGE, onAddedToStage, false, 0, true);
 
 			addChild(container);
 
@@ -89,10 +117,108 @@ package {
 			container.addChild(logField);
 
 			log("Init");
+			if (!permissionRequested) {
+				log("Notification permission request unavailable");
+			}
 
 			checkForUpdates();
 
 			fetchJSON(Config.API_VERSION_URL, onVersionComplete);
+		}
+
+		private function onAppExiting(e:Event):void {
+			NativeApplication.nativeApplication.removeEventListener(Event.ACTIVATE, onAppActivate);
+			NativeApplication.nativeApplication.removeEventListener(Event.DEACTIVATE, onAppDeactivate);
+			NativeApplication.nativeApplication.removeEventListener(Event.EXITING, onAppExiting);
+			if (stage != null) {
+				stage.removeEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);
+			}
+			NativeApplication.nativeApplication.systemIdleMode = SystemIdleMode.NORMAL;
+
+			if (foregroundService != null) {
+				foregroundService.stop();
+				isForegroundServiceRunning = false;
+				foregroundService.dispose();
+				foregroundService = null;
+			}
+		}
+
+		private function onAppActivate(e:Event):void {
+			NativeApplication.nativeApplication.systemIdleMode = SystemIdleMode.KEEP_AWAKE;
+			stopForegroundServiceIfRunning();
+			restoreAudioAfterForeground();
+		}
+
+		private function onAppDeactivate(e:Event):void {
+			NativeApplication.nativeApplication.systemIdleMode = SystemIdleMode.NORMAL;
+			startForegroundServiceIfNeeded();
+			muteAudioForBackground();
+		}
+
+		private function startForegroundServiceIfNeeded():void {
+			if (foregroundService == null || isForegroundServiceRunning) {
+				return;
+			}
+
+			isForegroundServiceRunning = foregroundService.start();
+			if (!isForegroundServiceRunning) {
+				log("Foreground service unavailable");
+			}
+		}
+
+		private function stopForegroundServiceIfRunning():void {
+			if (foregroundService == null || !isForegroundServiceRunning) {
+				return;
+			}
+
+			foregroundService.stop();
+			isForegroundServiceRunning = false;
+		}
+
+		private function muteAudioForBackground():void {
+			if (backgroundAudioMuted) {
+				return;
+			}
+
+			masterVolumeBeforeBackground = SoundMixer.soundTransform.volume;
+			SoundMixer.soundTransform = new SoundTransform(0);
+			backgroundAudioMuted = true;
+		}
+
+		private function restoreAudioAfterForeground():void {
+			if (!backgroundAudioMuted) {
+				return;
+			}
+
+			SoundMixer.soundTransform = new SoundTransform(masterVolumeBeforeBackground);
+			backgroundAudioMuted = false;
+		}
+
+		private function onAddedToStage(e:Event):void {
+			removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
+			if (stage != null) {
+				stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown, false, 0, true);
+			}
+		}
+
+		private function onKeyDown(e:KeyboardEvent):void {
+			if (e.keyCode != Keyboard.BACK) {
+				return;
+			}
+
+			e.preventDefault();
+			e.stopImmediatePropagation();
+
+			const now:int = getTimer();
+			if (now - lastBackPressAt <= BACK_EXIT_WINDOW_MS) {
+				NativeApplication.nativeApplication.exit();
+				return;
+			}
+
+			lastBackPressAt = now;
+			if (foregroundService != null) {
+				foregroundService.showToast("Back again to exit");
+			}
 		}
 
 		private function log(msg:String):void {
@@ -221,9 +347,16 @@ package {
 			stage.removeChild(DisplayObject(this));
 
 			gameMovieClip.addChild(new GamePad(gameMovieClip));
+
+			BotController.init(gameMovieClip, stage);
+			log("Bot controller initialized");
 		}
 
 		private function checkForUpdates():void {
+			if (Config.APP_VERSION == "") {
+				log("Dev build — skipping update check");
+				return;
+			}
 			log("Checking for updates...");
 			fetchJSON(Config.GITHUB_RELEASES_URL, onUpdateCheckComplete);
 		}

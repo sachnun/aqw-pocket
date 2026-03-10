@@ -2,7 +2,7 @@
 <application xmlns="http://ns.adobe.com/air/application/51.0">
   <id>com.aqw.pocket</id>
   <versionNumber>1.0.0</versionNumber>
-  <versionLabel>1.0.0</versionLabel>
+  <versionLabel>dev</versionLabel>
   <filename>AQW Pocket</filename>
   <description>Play AdventureQuest Worlds on your mobile device.</description>
   <name>AQW Pocket</name>
@@ -32,10 +32,28 @@
   </icon>
   <customUpdateUI>false</customUpdateUI>
   <allowBrowserInvocation>false</allowBrowserInvocation>
+  <extensions>
+    <extensionID>com.aqw.foreground</extensionID>
+  </extensions>
   <android>
     <manifestAdditions><![CDATA[<manifest>
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<application
+  android:hardwareAccelerated="true">
+  <service
+    android:name="com.aqw.foreground.AqwForegroundService"
+    android:enabled="true"
+    android:exported="false"
+    android:foregroundServiceType="dataSync"/>
+  <receiver
+    android:name="com.aqw.foreground.NotificationDismissedReceiver"
+    android:enabled="true"
+    android:exported="false"/>
+</application>
 </manifest>]]></manifestAdditions>
   </android>
   <supportedLanguages>en</supportedLanguages>
