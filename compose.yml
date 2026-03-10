@@ -1,10 +1,6 @@
 services:
   build:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      network: host
-    image: aqw-pocket-build
+    image: ghcr.io/sachnun/aqw-pocket:build
     volumes:
       - .:/workspace
     working_dir: /workspace

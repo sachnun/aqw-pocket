@@ -1,4 +1,4 @@
-DOCKER     := docker compose run --build --rm build
+DOCKER     := docker compose run --rm build
 SKIP_PATCH ?= 0
 SKIP_ANE   ?= 0
 
