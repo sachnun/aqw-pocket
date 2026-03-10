@@ -40,7 +40,7 @@ Output artifacts will be in `build/`.
 
 ## Credits
 
-Based on [aqw-mobile](https://github.com/anthony-hyo/aqw-mobile) by [@anthony-hyo](https://github.com/anthony-hyo).
+Based on [aqw-mobile](https://github.com/anthony-hyo/aqw-mobile) and [Skua](https://github.com/auqw/Skua/).
 
 ## Contributing
 
