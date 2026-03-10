@@ -45,7 +45,7 @@ jobs:
         id: meta
         run: |
           PREFIX="${{ github.event.inputs.version_prefix }}"
-          LATEST_TAG="$(git tag --list "v${PREFIX}.*" | grep -E "^v${PREFIX}\.[0-9]+$" | sort -V | tail -n 1 || true)"
+          LATEST_TAG="$(git tag --list "v${PREFIX}.*" | sed 's/-pre$//' | grep -E "^v${PREFIX}\.[0-9]+$" | sort -V | tail -n 1 || true)"
 
           if [ -n "$LATEST_TAG" ]; then
             PATCH_NUMBER="${LATEST_TAG##*.}"
@@ -378,6 +378,8 @@ jobs:
           if [ "${{ needs.prepare.outputs.prerelease }}" = "true" ]; then
             PRERELEASE_FLAG="--prerelease"
           fi
+
+          gh release delete "${{ needs.prepare.outputs.tag_version }}" --yes 2>/dev/null || true
 
           gh release create "${{ needs.prepare.outputs.tag_version }}" \
             "build/${{ needs.build_universal.outputs.apk_name }}" \
