@@ -9,9 +9,9 @@ package {
 
 		public static const GAME_SWF_PATH:String = "app:/gamefiles/Game.swf";
 
-		public static const APP_VERSION:String = "v1.0.0";
+		public static const APP_VERSION:String = "";
 
-		public static const GITHUB_RELEASES_URL:String = "https://api.github.com/repos/anthony-hyo/aqw-mobile/releases/latest";
+		public static const GITHUB_RELEASES_URL:String = "https://api.github.com/repos/sachnun/aqw-pocket/releases/latest";
 
     }
 
