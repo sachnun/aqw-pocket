@@ -68,15 +68,16 @@ build-armv7 build-armv8 build-aab build-universal:
 	amxmlc -external-library-path+=app/extensions/foreground.ane \
 	  -output app/Loader.swf app/src/Main.as && \
 	\
-	KS="$${KEYSTORE_PATH:-$${KEYSTORE_FILE:-temp_keystore.jks}}" && \
-	KA="$${KEY_ALIAS:-$${KEYSTORE_ALIAS:-tempalias}}" && \
-	KP="$${KEYSTORE_PASS:-$${KEYSTORE_PASSWORD:-temppass}}" && \
+	KS="$${KEYSTORE_PATH:-$${KEYSTORE_FILE:-.signing/dev.jks}}" && \
+	KA="$${KEY_ALIAS:-$${KEYSTORE_ALIAS:-dev}}" && \
+	KP="$${KEYSTORE_PASS:-$${KEYSTORE_PASSWORD:-devpass}}" && \
 	KKP="$${KEY_PASS:-$${KEY_PASSWORD:-$$KP}}" && \
 	if [ ! -f "$$KS" ]; then \
-	  echo "[keystore] Creating temporary keystore..." && \
+	  echo "[keystore] Creating dev keystore at $$KS..." && \
+	  mkdir -p "$$(dirname "$$KS")" && \
 	  keytool -genkeypair -alias "$$KA" -keyalg RSA -keysize 2048 -validity 10000 \
 	    -keystore "$$KS" -storepass "$$KP" -keypass "$$KKP" \
-	    -dname "CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, S=Unknown, C=US"; \
+	    -dname "CN=AQW Pocket Dev, OU=Dev, O=Community, L=Unknown, S=Unknown, C=US"; \
 	fi && \
 	mkdir -p build && \
 	\
@@ -138,9 +139,23 @@ build-linux:
 	echo "[3/4] Compiling Loader.swf (linux)..." && \
 	amxmlc -output app/Loader.swf app/src/Main.as && \
 	\
+	KS="$${KEYSTORE_PATH:-$${KEYSTORE_FILE:-.signing/dev.jks}}" && \
+	KA="$${KEY_ALIAS:-$${KEYSTORE_ALIAS:-dev}}" && \
+	KP="$${KEYSTORE_PASS:-$${KEYSTORE_PASSWORD:-devpass}}" && \
+	KKP="$${KEY_PASS:-$${KEY_PASSWORD:-$$KP}}" && \
+	if [ ! -f "$$KS" ]; then \
+	  echo "[keystore] Creating dev keystore at $$KS..." && \
+	  mkdir -p "$$(dirname "$$KS")" && \
+	  keytool -genkeypair -alias "$$KA" -keyalg RSA -keysize 2048 -validity 10000 \
+	    -keystore "$$KS" -storepass "$$KP" -keypass "$$KKP" \
+	    -dname "CN=AQW Pocket Dev, OU=Dev, O=Community, L=Unknown, S=Unknown, C=US"; \
+	fi && \
+	\
 	echo "[4/4] Packaging linux bundle..." && \
 	mkdir -p build && rm -rf build/AQWPocket-linux && \
-	adt -package -target bundle build/AQWPocket-linux app/app-linux.xml \
+	adt -package \
+	  -storetype JKS -keystore "$$KS" -storepass "$$KP" -keypass "$$KKP" \
+	  -target bundle build/AQWPocket-linux app/app-linux.xml \
 	  -C app Loader.swf \
 	  icons/android-icon-36x36.png icons/android-icon-48x48.png \
 	  icons/android-icon-72x72.png icons/android-icon-96x96.png \
@@ -165,7 +180,7 @@ help:
 	@echo "  build-armv8      Build armv8 APK only"
 	@echo "  build-aab        Build AAB"
 	@echo "  build-universal  Full pipeline: AAB -> normalize -> universal APK"
-	@echo "  build-linux      Build Linux bundle (no ANE, no signing)"
+	@echo "  build-linux      Build Linux bundle"
 	@echo ""
 	@echo "Options (via environment or make args):"
 	@echo "  SKIP_PATCH=1     Skip Game.swf patching step"

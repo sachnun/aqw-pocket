@@ -51,7 +51,7 @@ jobs:
             PATCH_NUMBER="${LATEST_TAG##*.}"
             NEXT_PATCH="$((PATCH_NUMBER + 1))"
           else
-            NEXT_PATCH="0"
+            NEXT_PATCH="1"
           fi
 
           APP_VERSION="${PREFIX}.${NEXT_PATCH}"
@@ -276,11 +276,32 @@ jobs:
           sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
 
+      - name: Restore signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "Missing Android signing secrets."
+            exit 1
+          fi
+
+          mkdir -p .signing
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > .signing/release.jks
+
       - name: Build Linux bundle
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
+            -e KEYSTORE_PATH=/workspace/.signing/release.jks \
+            -e KEY_ALIAS="$ANDROID_KEY_ALIAS" \
+            -e KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
+            -e KEY_PASS="$ANDROID_KEYSTORE_PASSWORD" \
             "$DOCKER_IMAGE" \
             sh -c '
               set -eu
@@ -292,7 +313,9 @@ jobs:
               amxmlc -output app/Loader.swf app/src/Main.as
               echo "[4/4] Packaging linux bundle..."
               mkdir -p build && rm -rf build/AQWPocket-linux
-              adt -package -target bundle build/AQWPocket-linux app/app-linux.xml \
+              adt -package \
+                -storetype JKS -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
+                -target bundle build/AQWPocket-linux app/app-linux.xml \
                 -C app Loader.swf \
                 icons/android-icon-36x36.png icons/android-icon-48x48.png \
                 icons/android-icon-72x72.png icons/android-icon-96x96.png \
@@ -300,6 +323,10 @@ jobs:
                 gamefiles/Game.swf
               echo "Done."
             '
+
+      - name: Clean signing keystore
+        if: always()
+        run: rm -rf .signing
 
       - name: Archive Linux bundle
         run: |
