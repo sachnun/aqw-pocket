@@ -1,14 +1,15 @@
 # AQW Pocket
 
-Unofficial AdventureQuest Worlds client for Android.
+Unofficial AdventureQuest Worlds client for Android and Linux.
 
 ## Download
 
-Get the latest APK from [Releases](../../releases/latest).
+Get the latest APK and Linux bundle from [Releases](../../releases/latest).
 
 ## Features
 
 - Native Android client (Adobe AIR)
+- Linux desktop bundle (embedded AIR runtime)
 - Touch controls (joystick + combat buttons)
 - In-app update checker with release banner
 - Background service support when app is minimized
@@ -26,14 +27,15 @@ make build
 
 | Target | Description |
 |---|---|
-| `make build` | Build armv7 + armv8 APKs (default) |
+| `make build` | Build universal APK + Linux bundle (default) |
+| `make build-universal` | Full pipeline: AAB -> universal APK |
+| `make build-linux` | Build Linux desktop bundle |
 | `make build-armv7` | Build armv7 APK only |
 | `make build-armv8` | Build armv8 APK only |
 | `make build-aab` | Build AAB |
-| `make build-universal` | Full pipeline: AAB -> universal APK |
 | `make clean` | Remove all build artifacts |
 
-Output APKs will be in `build/`.
+Output artifacts will be in `build/`.
 
 ## Credits
 
