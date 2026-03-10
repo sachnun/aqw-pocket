@@ -1,0 +1,3 @@
+     callpropvoid        QName(PackageNamespace(""), "addFrameScript"), 12
+
+     getlocal0
