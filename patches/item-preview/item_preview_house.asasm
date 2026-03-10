@@ -1,0 +1,20 @@
+      getlocal3
+      findpropstrict      QName(PackageNamespace("flash.net"), "URLRequest")
+      getlex              QName(PackageNamespace(""), "Game")
+      getproperty         QName(PackageNamespace(""), "serverFilePath")
+      getlocal2
+      add
+      constructprop       QName(PackageNamespace("flash.net"), "URLRequest"), 1
+      getlex              QName(PrivateNamespace(null, "LPFFrameItemPreview/instance#0"), "pLoaderC")
+      callpropvoid        Multiname("load", [PrivateNamespace(null, "LPFFrameItemPreview/instance#0"), PackageNamespace(""), ProtectedNamespace("LPFFrameItemPreview"), PrivateNamespace(null, "LPFFrameItemPreview/instance#1"), PackageInternalNs(""), Namespace("http://adobe.com/AS3/2006/builtin"), PackageNamespace("flash.text"), PackageNamespace("flash.net"), StaticProtectedNs("LPFFrameItemPreview"), StaticProtectedNs("LPFFrame"), StaticProtectedNs("flash.display:MovieClip"), StaticProtectedNs("flash.display:Sprite"), StaticProtectedNs("flash.display:DisplayObjectContainer"), StaticProtectedNs("flash.display:InteractiveObject"), StaticProtectedNs("flash.display:DisplayObject"), StaticProtectedNs("flash.events:EventDispatcher")]), 2
+--- replace
+      getlex QName(ProtectedNamespace("LPFFrameItemPreview"),"rootClass")
+      getproperty Multiname("failedServers",[PackageNamespace(""),Namespace("http://adobe.com/AS3/2006/builtin"),PackageInternalNs(""),PackageNamespace("flash.net"),PackageNamespace("flash.text"),StaticProtectedNs("flash.display:MovieClip"),StaticProtectedNs("flash.display:Sprite"),StaticProtectedNs("flash.display:DisplayObjectContainer"),StaticProtectedNs("flash.display:InteractiveObject"),StaticProtectedNs("flash.display:DisplayObject"),StaticProtectedNs("flash.events:EventDispatcher"),PrivateNamespace("LPFFrameItemPreview"),ProtectedNamespace("LPFFrameItemPreview"),StaticProtectedNs("LPFFrameItemPreview"),PrivateNamespace("LPFFrameItemPreview.as$409")])
+      getproperty Multiname("mobile",[PackageNamespace(""),Namespace("http://adobe.com/AS3/2006/builtin"),PackageInternalNs(""),PackageNamespace("flash.net"),PackageNamespace("flash.text"),StaticProtectedNs("flash.display:MovieClip"),StaticProtectedNs("flash.display:Sprite"),StaticProtectedNs("flash.display:DisplayObjectContainer"),StaticProtectedNs("flash.display:InteractiveObject"),StaticProtectedNs("flash.display:DisplayObject"),StaticProtectedNs("flash.events:EventDispatcher"),PrivateNamespace("LPFFrameItemPreview"),ProtectedNamespace("LPFFrameItemPreview"),StaticProtectedNs("LPFFrameItemPreview"),PrivateNamespace("LPFFrameItemPreview.as$409")])
+      getlocal3
+      getlex QName(PackageNamespace(""),"Game")
+      getproperty QName(PackageNamespace(""),"serverFilePath")
+      getlocal2
+      add
+      getlex              QName(PrivateNamespace(null, "LPFFrameItemPreview/instance#0"), "pLoaderC")
+      callpropvoid Multiname("queueLoadViaBytes",[PackageNamespace(""),Namespace("http://adobe.com/AS3/2006/builtin"),PackageInternalNs(""),PackageNamespace("flash.net"),PackageNamespace("flash.text"),StaticProtectedNs("flash.display:MovieClip"),StaticProtectedNs("flash.display:Sprite"),StaticProtectedNs("flash.display:DisplayObjectContainer"),StaticProtectedNs("flash.display:InteractiveObject"),StaticProtectedNs("flash.display:DisplayObject"),StaticProtectedNs("flash.events:EventDispatcher"),PrivateNamespace("LPFFrameItemPreview"),ProtectedNamespace("LPFFrameItemPreview"),StaticProtectedNs("LPFFrameItemPreview"),PrivateNamespace("LPFFrameItemPreview.as$409")]), 3
