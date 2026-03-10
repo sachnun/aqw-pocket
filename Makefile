@@ -160,12 +160,18 @@ build-linux:
 	\
 	echo "[5/5] Creating AppImage..." && \
 	rm -rf build/AQWPocket.AppDir && \
-	mkdir -p build/AQWPocket.AppDir && \
+	mkdir -p build/AQWPocket.AppDir/lib && \
 	cp -a build/AQWPocket-linux build/AQWPocket.AppDir/AQWPocket-linux && \
 	cp linux/AppRun build/AQWPocket.AppDir/AppRun && \
 	chmod +x build/AQWPocket.AppDir/AppRun && \
 	cp linux/AQWPocket.desktop build/AQWPocket.AppDir/AQWPocket.desktop && \
 	cp app/icons/android-icon-192x192.png build/AQWPocket.AppDir/AQWPocket.png && \
+	EXCLUDE="linux-vdso|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread|librt\.so|libresolv|libgcc_s|libstdc\+\+" && \
+	CORE_SO="build/AQWPocket.AppDir/AQWPocket-linux/Adobe AIR/Versions/1.0/libCore.so" && \
+	ldd "$$CORE_SO" | grep "=> /" | grep -vE "$$EXCLUDE" | awk "{print \$$3}" | sort -u | while read lib; do \
+	  cp -n "$$lib" build/AQWPocket.AppDir/lib/ 2>/dev/null || true; \
+	done && \
+	echo "Bundled $$(ls build/AQWPocket.AppDir/lib/ | wc -l) shared libraries" && \
 	ARCH=x86_64 $$APPIMAGETOOL build/AQWPocket.AppDir build/AQWPocket-x86_64.AppImage && \
 	rm -rf build/AQWPocket-linux build/AQWPocket.AppDir && \
 	echo "Done. AppImage: build/AQWPocket-x86_64.AppImage"'
