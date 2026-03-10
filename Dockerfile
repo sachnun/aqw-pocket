@@ -82,7 +82,7 @@ COPY --from=builder /opt/bundletool           /opt/bundletool
 COPY --from=builder /opt/appimagetool         /opt/appimagetool
 
 # -----------------------------------------------------------
-# Linux desktop runtime dependencies (for adt -target bundle)
+# Linux desktop runtime dependencies (for AIR runtime + ldd lib bundling)
 # -----------------------------------------------------------
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \

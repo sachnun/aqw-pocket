@@ -139,29 +139,29 @@ build-linux:
 	echo "[3/5] Compiling Loader.swf (linux)..." && \
 	amxmlc -output app/Loader.swf app/src/Main.as && \
 	\
-	P12=".signing/dev.p12" && \
-	P12_PASS="devpass" && \
-	if [ ! -f "$$P12" ]; then \
-	  echo "[cert] Creating dev certificate at $$P12..." && \
-	  mkdir -p .signing && \
-	  adt -certificate -cn "AQW Pocket Dev" 2048-RSA "$$P12" "$$P12_PASS"; \
-	fi && \
-	\
-	echo "[4/5] Packaging AIR bundle..." && \
-	mkdir -p build && rm -rf build/AQWPocket-linux && \
-	adt -package \
-	  -storetype pkcs12 -keystore "$$P12" -storepass "$$P12_PASS" \
-	  -target bundle build/AQWPocket-linux app/app-linux.xml \
-	  -C app Loader.swf \
-	  icons/android-icon-36x36.png icons/android-icon-48x48.png \
-	  icons/android-icon-72x72.png icons/android-icon-96x96.png \
-	  icons/android-icon-144x144.png icons/android-icon-192x192.png \
-	  gamefiles/Game.swf && \
+	echo "[4/5] Assembling AIR bundle..." && \
+	RUNTIME="/opt/air_sdk/runtimes/air/linux-x64" && \
+	BUNDLE="build/AQWPocket-linux" && \
+	mkdir -p build && rm -rf "$$BUNDLE" && \
+	mkdir -p "$$BUNDLE/META-INF/AIR" && \
+	cp -a "$$RUNTIME/Adobe AIR" "$$BUNDLE/" && \
+	cp "$$RUNTIME/Adobe AIR/Versions/1.0/Resources/captiveappentry" "$$BUNDLE/AQWPocket" && \
+	chmod +x "$$BUNDLE/AQWPocket" && \
+	cp app/Loader.swf "$$BUNDLE/Loader.swf" && \
+	cp app/app-linux.xml "$$BUNDLE/META-INF/AIR/application.xml" && \
+	cp linux/license.txt "$$BUNDLE/META-INF/AIR/license.txt" && \
+	echo -n "application/vnd.adobe.air-application-installer-package+zip" > "$$BUNDLE/mimetype" && \
+	mkdir -p "$$BUNDLE/icons" && \
+	for sz in 36 48 72 96 144 192; do \
+	  cp "app/icons/android-icon-$${sz}x$${sz}.png" "$$BUNDLE/icons/android-icon-$${sz}x$${sz}.png"; \
+	done && \
+	mkdir -p "$$BUNDLE/gamefiles" && \
+	cp app/gamefiles/Game.swf "$$BUNDLE/gamefiles/Game.swf" && \
 	\
 	echo "[5/5] Creating AppImage..." && \
 	rm -rf build/AQWPocket.AppDir && \
 	mkdir -p build/AQWPocket.AppDir/lib && \
-	cp -a build/AQWPocket-linux build/AQWPocket.AppDir/AQWPocket-linux && \
+	cp -a "$$BUNDLE" build/AQWPocket.AppDir/AQWPocket-linux && \
 	cp linux/AppRun build/AQWPocket.AppDir/AppRun && \
 	chmod +x build/AQWPocket.AppDir/AppRun && \
 	cp linux/AQWPocket.desktop build/AQWPocket.AppDir/AQWPocket.desktop && \
