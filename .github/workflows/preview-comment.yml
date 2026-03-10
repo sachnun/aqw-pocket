@@ -1,4 +1,4 @@
-name: PR Preview Comment
+name: Preview Comment
 
 on:
   pull_request_target:
@@ -8,7 +8,7 @@ on:
       - reopened
   workflow_run:
     workflows:
-      - PR Preview APK
+      - Preview
     types:
       - completed
 
@@ -35,14 +35,14 @@ jobs:
             const shortSha = process.env.HEAD_SHA.slice(0, 7);
             const body = [
               marker,
-              '## APK Preview',
+              '## Preview',
               '',
               '**Status:** Building...',
               `Commit: \`${shortSha}\``,
               '',
               `- Checks: ${process.env.CHECKS_URL}`,
-              '- Artifact: preparing preview build',
-              '- Merge gate: waiting for `PR Preview APK`',
+              '- Artifacts: preparing preview builds (APK + Linux)',
+              '- Merge gate: waiting for `Preview`',
               '',
               'This comment updates automatically whenever the PR changes.',
             ].join('\n');
@@ -122,8 +122,10 @@ jobs:
               per_page: 100,
             });
 
-            const artifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
+            const apkArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
+            const linuxArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.tar.gz'));
             const buildJob = jobs.jobs.find((job) => job.name === 'Build Universal Preview APK');
+            const linuxJob = jobs.jobs.find((job) => job.name === 'Build Linux Preview Bundle');
             const shortSha = run.head_sha.slice(0, 7);
             const statusMap = {
               success: 'Ready',
@@ -136,30 +138,40 @@ jobs:
             const statusText = statusMap[conclusion] || 'Completed';
             const runUrl = run.html_url;
             const buildUrl = buildJob ? buildJob.html_url : runUrl;
-            const artifactUrl = artifact
-              ? `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}`
-              : null;
+            const linuxBuildUrl = linuxJob ? linuxJob.html_url : runUrl;
+
+            const makeArtifactUrl = (artifact) =>
+              artifact
+                ? `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}`
+                : null;
+
+            const apkUrl = makeArtifactUrl(apkArtifact);
+            const linuxUrl = makeArtifactUrl(linuxArtifact);
 
             let bodyLines;
-            if (conclusion === 'success' && artifactUrl) {
+            if (conclusion === 'success' && (apkUrl || linuxUrl)) {
               bodyLines = [
                 marker,
-                '## APK Preview',
+                '## Preview',
                 '',
                 '**Status:** Ready',
                 `Commit: \`${shortSha}\``,
                 '',
-                `- [Download APK](${artifactUrl})`,
-                `- [Build log](${buildUrl})`,
-                '- Merge gate: `PR Preview APK` passed',
-                '- Artifact expires in 7 days.',
+              ];
+
+              if (apkUrl) bodyLines.push(`- [Download APK](${apkUrl}) ([build log](${buildUrl}))`);
+              if (linuxUrl) bodyLines.push(`- [Download Linux bundle](${linuxUrl}) ([build log](${linuxBuildUrl}))`);
+
+              bodyLines.push(
+                '- Merge gate: `Preview` passed',
+                '- Artifacts expire in 7 days.',
                 '',
                 'This comment updates automatically whenever the PR changes.',
-              ];
+              );
             } else {
               bodyLines = [
                 marker,
-                '## APK Preview',
+                '## Preview',
                 '',
                 `**Status:** ${statusText}`,
                 `Commit: \`${shortSha}\``,
@@ -167,12 +179,11 @@ jobs:
                 `- [Build log](${buildUrl})`,
               ];
 
-              if (artifactUrl) {
-                bodyLines.push(`- [Last artifact](${artifactUrl})`);
-              }
+              if (apkUrl) bodyLines.push(`- [Last APK artifact](${apkUrl})`);
+              if (linuxUrl) bodyLines.push(`- [Last Linux artifact](${linuxUrl})`);
 
               bodyLines.push(
-                '- Merge gate: `PR Preview APK` must pass before merge',
+                '- Merge gate: `Preview` must pass before merge',
                 'Build previews must pass before this PR can be merged.',
                 '',
                 'This comment updates automatically whenever the PR changes.',

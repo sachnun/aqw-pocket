@@ -1,4 +1,4 @@
-name: Build APK
+name: Build
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ on:
         type: boolean
 
 concurrency:
-  group: build-apk-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -143,7 +143,48 @@ jobs:
             -e KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
             -e KEY_PASS="$ANDROID_KEYSTORE_PASSWORD" \
             "$DOCKER_IMAGE" \
-            ./scripts/build.sh --target-aab
+            sh -c '
+              set -eu
+              echo "[1/5] Patching latest Game.swf..."
+              java scripts/patch.java
+              echo "[2/5] Preparing loader gamefiles..."
+              mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
+              echo "[3/5] Building foreground ANE..."
+              mkdir -p ane/build/as3/core ane/build/android/classes ane/build/android-dist app/extensions
+              rm -rf ane/build/android-dist/res
+              if [ -d ane/android/res ]; then cp -R ane/android/res ane/build/android-dist/res; fi
+              cp app/src/core/ForegroundService.as ane/build/as3/core/ForegroundService.as
+              compc -source-path ane/build/as3 -include-classes core.ForegroundService \
+                -swf-version=23 -output ane/build/foreground.swc
+              javac --release 8 \
+                -cp "$ANDROID_JAR:$AIR_HOME/lib/android/FlashRuntimeExtensions.jar" \
+                -d ane/build/android/classes ane/android/src/com/aqw/foreground/*.java
+              jar cf ane/build/foreground-ext.jar -C ane/build/android/classes .
+              java scripts/tools.java extract-library-swf \
+                ane/build/foreground.swc ane/build/android-dist/library.swf
+              cp ane/build/foreground-ext.jar ane/build/android-dist/foreground-ext.jar
+              cp ane/extension.xml ane/build/extension.xml
+              cp ane/platform-android.xml ane/build/android-dist/platform.xml
+              adt -package -target ane ane/build/foreground.ane ane/build/extension.xml \
+                -swc ane/build/foreground.swc \
+                -platform Android-ARM -platformoptions ane/build/android-dist/platform.xml \
+                  -C ane/build/android-dist foreground-ext.jar library.swf res \
+                -platform Android-ARM64 -platformoptions ane/build/android-dist/platform.xml \
+                  -C ane/build/android-dist foreground-ext.jar library.swf res
+              cp ane/build/foreground.ane app/extensions/foreground.ane
+              echo "[4/5] Compiling Loader.swf..."
+              amxmlc -external-library-path+=app/extensions/foreground.ane \
+                -output app/Loader.swf app/src/Main.as
+              echo "[5/5] Building AAB..."
+              mkdir -p build
+              ICONS="icons/android-icon-36x36.png icons/android-icon-48x48.png icons/android-icon-72x72.png icons/android-icon-96x96.png icons/android-icon-144x144.png icons/android-icon-192x192.png"
+              adt -package -target aab \
+                -storetype JKS -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
+                build/AQWPocket.aab app/app.xml -extdir app/extensions \
+                -C app Loader.swf $ICONS gamefiles/Game.swf \
+                -platformsdk "$ANDROID_SDK_ROOT"
+              echo "Done."
+            '
 
       - name: Normalize AAB native library compression
         run: |
@@ -194,10 +235,88 @@ jobs:
           path: build/${{ steps.meta.outputs.apk_name }}
           if-no-files-found: error
 
+  build_linux:
+    name: Build Linux Bundle
+    runs-on: ubuntu-latest
+    needs: prepare
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      archive_name: ${{ steps.meta.outputs.archive_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Set output names
+        id: meta
+        run: |
+          ARCHIVE_NAME="AQWPocket-linux-${{ needs.prepare.outputs.tag_version }}.tar.gz"
+          ARTIFACT_NAME="linux-bundle-${{ needs.prepare.outputs.tag_version }}"
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Inject version into source files
+        run: |
+          sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
+          sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
+          sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
+
+      - name: Build Linux bundle
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$DOCKER_IMAGE" \
+            sh -c '
+              set -eu
+              echo "[1/4] Patching latest Game.swf..."
+              java scripts/patch.java
+              echo "[2/4] Preparing loader gamefiles..."
+              mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
+              echo "[3/4] Compiling Loader.swf (linux)..."
+              amxmlc -output app/Loader.swf app/src/Main.as
+              echo "[4/4] Packaging linux bundle..."
+              mkdir -p build && rm -rf build/AQWPocket-linux
+              adt -package -target bundle build/AQWPocket-linux app/app-linux.xml \
+                -C app Loader.swf \
+                icons/android-icon-36x36.png icons/android-icon-48x48.png \
+                icons/android-icon-72x72.png icons/android-icon-96x96.png \
+                icons/android-icon-144x144.png icons/android-icon-192x192.png \
+                gamefiles/Game.swf
+              echo "Done."
+            '
+
+      - name: Archive Linux bundle
+        run: |
+          tar -czf "build/${{ steps.meta.outputs.archive_name }}" \
+            -C build AQWPocket-linux
+
+      - name: Upload Linux bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: build/${{ steps.meta.outputs.archive_name }}
+          if-no-files-found: error
+
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [prepare, build_universal]
+    needs: [prepare, build_universal, build_linux]
     if: needs.prepare.outputs.publish_release == 'true'
     permissions:
       contents: write
@@ -211,6 +330,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build_universal.outputs.artifact_name }}
+          path: build
+
+      - name: Download Linux bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build_linux.outputs.artifact_name }}
           path: build
 
       - name: Tag release
@@ -229,6 +354,7 @@ jobs:
 
           gh release create "${{ needs.prepare.outputs.tag_version }}" \
             "build/${{ needs.build_universal.outputs.apk_name }}" \
+            "build/${{ needs.build_linux.outputs.archive_name }}" \
             --title "${{ needs.prepare.outputs.tag_version }}" \
             --generate-notes \
             $PRERELEASE_FLAG
