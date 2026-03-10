@@ -236,31 +236,11 @@ jobs:
           sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
 
-      - name: Generate preview signing keystore
-        run: |
-          mkdir -p .signing
-          docker run --rm \
-            -v "$PWD/.signing:/signing" \
-            "$DOCKER_IMAGE" \
-            keytool -genkeypair \
-              -alias preview \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 3650 \
-              -keystore /signing/pr-preview.jks \
-              -storepass previewpass \
-              -keypass previewpass \
-              -dname "CN=AQW Pocket Preview, OU=CI, O=GitHub Actions, L=Unknown, S=Unknown, C=US"
-
       - name: Build Linux bundle
         run: |
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
-            -e KEYSTORE_PATH=/workspace/.signing/pr-preview.jks \
-            -e KEY_ALIAS=preview \
-            -e KEYSTORE_PASS=previewpass \
-            -e KEY_PASS=previewpass \
             "$DOCKER_IMAGE" \
             sh -c '
               set -eu
@@ -272,8 +252,9 @@ jobs:
               amxmlc -output app/Loader.swf app/src/Main.as
               echo "[4/4] Packaging linux bundle..."
               mkdir -p build && rm -rf build/AQWPocket-linux
+              adt -certificate -cn "AQW Pocket" 2048-RSA /tmp/bundle.p12 bundlepass
               adt -package \
-                -storetype JKS -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
+                -storetype pkcs12 -keystore /tmp/bundle.p12 -storepass bundlepass \
                 -target bundle build/AQWPocket-linux app/app-linux.xml \
                 -C app Loader.swf \
                 icons/android-icon-36x36.png icons/android-icon-48x48.png \
@@ -282,10 +263,6 @@ jobs:
                 gamefiles/Game.swf
               echo "Done."
             '
-
-      - name: Clean signing keystore
-        if: always()
-        run: rm -rf .signing
 
       - name: Archive Linux bundle
         run: |

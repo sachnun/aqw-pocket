@@ -139,22 +139,18 @@ build-linux:
 	echo "[3/4] Compiling Loader.swf (linux)..." && \
 	amxmlc -output app/Loader.swf app/src/Main.as && \
 	\
-	KS="$${KEYSTORE_PATH:-$${KEYSTORE_FILE:-.signing/dev.jks}}" && \
-	KA="$${KEY_ALIAS:-$${KEYSTORE_ALIAS:-dev}}" && \
-	KP="$${KEYSTORE_PASS:-$${KEYSTORE_PASSWORD:-devpass}}" && \
-	KKP="$${KEY_PASS:-$${KEY_PASSWORD:-$$KP}}" && \
-	if [ ! -f "$$KS" ]; then \
-	  echo "[keystore] Creating dev keystore at $$KS..." && \
-	  mkdir -p "$$(dirname "$$KS")" && \
-	  keytool -genkeypair -alias "$$KA" -keyalg RSA -keysize 2048 -validity 10000 \
-	    -keystore "$$KS" -storepass "$$KP" -keypass "$$KKP" \
-	    -dname "CN=AQW Pocket Dev, OU=Dev, O=Community, L=Unknown, S=Unknown, C=US"; \
+	P12=".signing/dev.p12" && \
+	P12_PASS="devpass" && \
+	if [ ! -f "$$P12" ]; then \
+	  echo "[cert] Creating dev certificate at $$P12..." && \
+	  mkdir -p .signing && \
+	  adt -certificate -cn "AQW Pocket Dev" 2048-RSA "$$P12" "$$P12_PASS"; \
 	fi && \
 	\
 	echo "[4/4] Packaging linux bundle..." && \
 	mkdir -p build && rm -rf build/AQWPocket-linux && \
 	adt -package \
-	  -storetype JKS -keystore "$$KS" -storepass "$$KP" -keypass "$$KKP" \
+	  -storetype pkcs12 -keystore "$$P12" -storepass "$$P12_PASS" \
 	  -target bundle build/AQWPocket-linux app/app-linux.xml \
 	  -C app Loader.swf \
 	  icons/android-icon-36x36.png icons/android-icon-48x48.png \
