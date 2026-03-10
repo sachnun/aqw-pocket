@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      prerelease:
+        description: "Mark as pre-release (adds -pre suffix to tag)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: build-apk-${{ github.ref }}
@@ -28,6 +33,7 @@ jobs:
       app_version: ${{ steps.meta.outputs.app_version }}
       tag_version: ${{ steps.meta.outputs.tag_version }}
       publish_release: ${{ steps.meta.outputs.publish_release }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
       - name: Checkout tags
         uses: actions/checkout@v5
@@ -51,6 +57,13 @@ jobs:
           APP_VERSION="${PREFIX}.${NEXT_PATCH}"
           TAG_VERSION="v${APP_VERSION}"
 
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            TAG_VERSION="${TAG_VERSION}-pre"
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+
           if [ "${{ github.event.inputs.publish_release }}" = "true" ]; then
             PUBLISH_RELEASE="true"
           else
@@ -60,6 +73,7 @@ jobs:
           echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "publish_release=${PUBLISH_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
 
   build_universal:
     name: Build Universal APK
@@ -207,7 +221,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ needs.prepare.outputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
           gh release create "${{ needs.prepare.outputs.tag_version }}" \
             "build/${{ needs.build_universal.outputs.apk_name }}" \
             --title "${{ needs.prepare.outputs.tag_version }}" \
-            --generate-notes
+            --generate-notes \
+            $PRERELEASE_FLAG
