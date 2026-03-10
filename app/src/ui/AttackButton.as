@@ -6,13 +6,15 @@ package ui {
 
 	public class AttackButton extends Sprite {
 
-		public function AttackButton(lbl:String, color:uint, rim:uint, sz:Number) {
+		public function AttackButton(lbl:String, color:uint, rim:uint, sz:Number, icon:DisplayObject = null, interactive:Boolean = true) {
 			baseColor = color;
 			rimColor = rim;
 			size = sz;
+			iconDisplay = icon;
 
-			buttonMode = true;
-			useHandCursor = true;
+			buttonMode = interactive;
+			useHandCursor = interactive;
+			mouseEnabled = interactive;
 
 			bg = new Shape();
 
@@ -31,15 +33,36 @@ package ui {
 
 			addChild(label);
 
+			if (iconDisplay != null) {
+				if (iconDisplay is InteractiveObject) {
+					InteractiveObject(iconDisplay).mouseEnabled = false;
+				}
+				iconDisplay.x = size * 0.5;
+				iconDisplay.y = size * 0.5;
+				addChild(iconDisplay);
+				label.visible = false;
+			}
+
 			draw(false);
 		}
 
 		private var _pressed:Boolean = false;
+		private var _toggled:Boolean = false;
 		private var size:Number;
 		private var baseColor:uint;
 		private var rimColor:uint;
 		private var bg:Shape;
 		private var label:TextField;
+		private var iconDisplay:DisplayObject;
+
+		public function get toggled():Boolean {
+			return _toggled;
+		}
+
+		public function setToggled(t:Boolean):void {
+			_toggled = t;
+			draw(_pressed);
+		}
 
 		public function setPressed(p:Boolean):void {
 			if (_pressed == p) {
@@ -74,15 +97,22 @@ package ui {
 			g.drawRoundRect(0, lift, size, size, 8);
 			g.endFill();
 
-			g.lineStyle(2, rimColor, pressed ? 0.25 : 0.5);
+			const activeRim:uint = _toggled ? 0x44ff44 : rimColor;
+			const rimAlpha:Number = _toggled ? 0.9 : (pressed ? 0.25 : 0.5);
+			g.lineStyle(2, activeRim, rimAlpha);
 			g.drawRoundRect(0, lift, size, size, 8);
 
 			g.lineStyle(1, 0x000000, 0.25);
 			g.drawRoundRect(2, lift + 2, size - 4, size - 4, 6);
 
 			label.y = size * (pressed ? 0.26 : 0.22);
-			label.textColor = pressed ? 0x999999 : 0xffffff;
-			label.alpha = pressed ? 0.4 : 0.5;
+			label.textColor = _toggled ? 0x44ff44 : (pressed ? 0x999999 : 0xffffff);
+			label.alpha = _toggled ? 0.9 : (pressed ? 0.4 : 0.5);
+
+			if (iconDisplay != null) {
+				iconDisplay.y = size * (pressed ? 0.53 : 0.50);
+				iconDisplay.alpha = pressed ? 0.35 : 0.6;
+			}
 		}
 
 		private function lerp(c:uint, t:uint, r:Number):uint {
@@ -93,4 +123,3 @@ package ui {
 		}
 	}
 }
-

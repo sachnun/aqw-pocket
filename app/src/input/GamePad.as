@@ -6,6 +6,9 @@ package input {
 
 	import ui.Layout;
 	import ui.SkillBar;
+	import bot.ui.BotPanel;
+	import bot.ui.CellPanel;
+	import bot.ui.MapIntelPanel;
 
 	public class GamePad extends Sprite {
 
@@ -26,9 +29,13 @@ package input {
 		private var walkCtrl:WalkController;
 		private var skillBar:SkillBar;
 		private var layout:Layout;
+		private var botPanel:BotPanel;
+		private var cellPanel:CellPanel;
+		private var mapIntelPanel:MapIntelPanel;
 		private var gearBtn:Sprite;
 		private var dropdown:Sprite;
 		private var dropdownOpen:Boolean = false;
+		private var joystickActive:Boolean = false;
 
 		private function buildGearMenu():void {
 			gearBtn = new Sprite();
@@ -58,6 +65,18 @@ package input {
 				{
 					label: "Hide UI",
 					fn: doHideUI
+				},
+				{
+					label: "Bot Panel",
+					fn: doBotPanel
+				},
+				{
+					label: "Cell Jump",
+					fn: doCellJump
+				},
+				{
+					label: "Map Intel",
+					fn: doMapIntel
 				},
 				{
 					label: "Edit Layout",
@@ -164,13 +183,46 @@ package input {
 		private function doEditLayout():void {
 			layout.toggleEdit();
 
-			const row:Sprite = Sprite(dropdown.getChildAt(1));
+			const row:Sprite = Sprite(dropdown.getChildAt(4));
 			const tf:TextField = TextField(row.getChildAt(1));
 			tf.text = layout.editMode ? "Save Layout" : "Edit Layout";
 		}
 
 		private function doResetLayout():void {
 			layout.resetToDefaults();
+		}
+
+		private function doMapIntel():void {
+			if (mapIntelPanel == null) {
+				mapIntelPanel = new MapIntelPanel();
+				mapIntelPanel.visible = false;
+				addChild(mapIntelPanel);
+			}
+			mapIntelPanel.visible = !mapIntelPanel.visible;
+			if (mapIntelPanel.visible) {
+				mapIntelPanel.refresh();
+			}
+		}
+
+		private function doBotPanel():void {
+			if (botPanel == null) {
+				botPanel = new BotPanel();
+				botPanel.visible = false;
+				addChild(botPanel);
+			}
+			botPanel.visible = !botPanel.visible;
+		}
+
+		private function doCellJump():void {
+			if (cellPanel == null) {
+				cellPanel = new CellPanel();
+				cellPanel.visible = false;
+				addChild(cellPanel);
+			}
+			cellPanel.visible = !cellPanel.visible;
+			if (cellPanel.visible) {
+				cellPanel.refresh();
+			}
 		}
 
 		private function makeLabel(text:String, color:uint, size:int, bold:Boolean = false):TextField {
@@ -239,21 +291,24 @@ package input {
 			}
 
 			if (joystick.hitTest(e.stageX, e.stageY)) {
+				joystickActive = true;
 				joystick.move(e.stageX, e.stageY);
 				stage.addEventListener(Event.ENTER_FRAME, onEnterFrame);
 			}
 		}
 
 		private function onMove(e:MouseEvent):void {
-			if (joystick.dirX != 0 || joystick.dirY != 0) {
+			if (joystickActive) {
 				joystick.move(e.stageX, e.stageY);
 			}
 		}
 
 		private function onUp(e:MouseEvent):void {
-			if (joystick.dirX == 0 && joystick.dirY == 0) {
+			if (!joystickActive) {
 				return;
 			}
+
+			joystickActive = false;
 
 			joystick.snapHome();
 
@@ -268,4 +323,3 @@ package input {
 
 	}
 }
-

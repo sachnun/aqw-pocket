@@ -7,6 +7,7 @@ package input {
 		public static const RADIUS:Number = 72;
 		public static const KNOB_RADIUS:Number = 28;
 		public static const LIMIT:Number = RADIUS - KNOB_RADIUS * 0.4;
+		public static const DEAD_ZONE:Number = LIMIT * 0.08;
 
 		public static const DEFAULT_X:Number = 73;
 		public static const DEFAULT_Y:Number = 348;
@@ -28,6 +29,14 @@ package input {
 
 			const dist:Number = Math.sqrt(dx * dx + dy * dy);
 
+			if (dist <= DEAD_ZONE) {
+				knob.x = 0;
+				knob.y = 0;
+				dirX = 0;
+				dirY = 0;
+				return;
+			}
+
 			if (dist > LIMIT) {
 				dx = dx / dist * LIMIT;
 				dy = dy / dist * LIMIT;
@@ -36,8 +45,11 @@ package input {
 			knob.x = dx;
 			knob.y = dy;
 
-			dirX = dx / LIMIT;
-			dirY = dy / LIMIT;
+			const knobDist:Number = Math.sqrt(dx * dx + dy * dy);
+			const scaledMag:Number = (knobDist - DEAD_ZONE) / (LIMIT - DEAD_ZONE);
+
+			dirX = (dx / knobDist) * scaledMag;
+			dirY = (dy / knobDist) * scaledMag;
 		}
 
 		public function snapHome():void {
