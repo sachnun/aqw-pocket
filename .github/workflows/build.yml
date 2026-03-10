@@ -281,6 +281,7 @@ jobs:
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
+            -e ARCHIVE_NAME="$ARCHIVE_NAME" \
             "$DOCKER_IMAGE" \
             sh -c '
               set -eu
@@ -301,13 +302,12 @@ jobs:
                 icons/android-icon-72x72.png icons/android-icon-96x96.png \
                 icons/android-icon-144x144.png icons/android-icon-192x192.png \
                 gamefiles/Game.swf
+              tar -czf "build/$ARCHIVE_NAME" -C build AQWPocket-linux
+              rm -rf build/AQWPocket-linux
               echo "Done."
             '
-
-      - name: Archive Linux bundle
-        run: |
-          tar -czf "build/${{ steps.meta.outputs.archive_name }}" \
-            -C build AQWPocket-linux
+        env:
+          ARCHIVE_NAME: ${{ steps.meta.outputs.archive_name }}
 
       - name: Upload Linux bundle artifact
         uses: actions/upload-artifact@v4
