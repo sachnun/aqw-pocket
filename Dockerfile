@@ -63,6 +63,7 @@ ARG ANDROID_BUILD_TOOLS=34.0.0
 # -----------------------------------------------------------
 # Copy all tools from builder (no apt-get needed)
 # -----------------------------------------------------------
+COPY --from=builder /usr/bin/unzip             /usr/bin/
 COPY --from=builder /usr/local/bin/jq         /usr/local/bin/
 COPY --from=builder /tmp/rabcdasm/abcexport   /usr/local/bin/
 COPY --from=builder /tmp/rabcdasm/rabcdasm    /usr/local/bin/
