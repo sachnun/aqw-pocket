@@ -43,6 +43,10 @@ Output APKs will be in the `build/` directory.
 
 Builds are also available via [GitHub Actions](../../actions).
 
+## Credits
+
+Based on [aqw-mobile](https://github.com/anthony-hyo/aqw-mobile) by [@anthony-hyo](https://github.com/anthony-hyo).
+
 ## Contributing
 
 PRs and issues are welcome.
