@@ -29,11 +29,14 @@ ARG CMDLINE_TOOLS_URL=https://dl.google.com/android/repository/commandlinetools-
 
 COPY sdk/AIRSDK_Linux.zip /tmp/air_sdk.zip
 
+ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+
 SHELL ["/bin/bash", "-c"]
 RUN echo "Downloading tools in parallel..." && \
     curl -fSL -o /tmp/cmdline-tools.zip "${CMDLINE_TOOLS_URL}" & \
     curl -fSL -o /tmp/bundletool.jar \
         "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar" & \
+    curl -fSL -o /tmp/appimagetool.AppImage "${APPIMAGETOOL_URL}" & \
     wait && \
     # Install AIR SDK
     mkdir -p /opt/air_sdk && \
@@ -46,8 +49,12 @@ RUN echo "Downloading tools in parallel..." && \
     # Install bundletool
     mkdir -p /opt/bundletool && \
     mv /tmp/bundletool.jar /opt/bundletool/bundletool.jar && \
+    # Extract appimagetool (--appimage-extract works without FUSE)
+    chmod +x /tmp/appimagetool.AppImage && \
+    cd /tmp && ./appimagetool.AppImage --appimage-extract && \
+    mv /tmp/squashfs-root /opt/appimagetool && \
     # Cleanup
-    rm -f /tmp/air_sdk.zip /tmp/cmdline-tools.zip
+    rm -f /tmp/air_sdk.zip /tmp/cmdline-tools.zip /tmp/appimagetool.AppImage
 
 # ============================================================
 # Stage 2: Final image (zero apt-get!)
@@ -72,6 +79,7 @@ COPY --from=builder /tmp/rabcdasm/abcreplace  /usr/local/bin/
 COPY --from=builder /opt/air_sdk              /opt/air_sdk
 COPY --from=builder /opt/android-sdk          /opt/android-sdk
 COPY --from=builder /opt/bundletool           /opt/bundletool
+COPY --from=builder /opt/appimagetool         /opt/appimagetool
 
 # -----------------------------------------------------------
 # Linux desktop runtime dependencies (for adt -target bundle)
@@ -80,7 +88,7 @@ RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
         libgtk2.0-0 libgdk-pixbuf2.0-0 libpango-1.0-0 \
         libx11-6 libxcursor1 libxrender1 libxml2 \
-        libnss3 libnspr4 libgl1 && \
+        libnss3 libnspr4 libgl1 file && \
     rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------
@@ -100,5 +108,6 @@ ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV ANDROID_JAR=/opt/android-sdk/platforms/android-34/android.jar
 ENV BUNDLETOOL_JAR=/opt/bundletool/bundletool.jar
 ENV PATH="${AIR_HOME}/bin:${PATH}"
+ENV APPIMAGETOOL=/opt/appimagetool/AppRun
 
 WORKDIR /workspace

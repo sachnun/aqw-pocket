@@ -23,6 +23,7 @@ signing.env.*
 *.apk
 *.aab
 *.apks
+*.AppImage
 
 # Git
 .git/

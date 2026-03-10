@@ -123,9 +123,9 @@ jobs:
             });
 
             const apkArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
-            const linuxArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.tar.gz'));
+            const linuxArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.AppImage'));
             const buildJob = jobs.jobs.find((job) => job.name === 'Build Universal Preview APK');
-            const linuxJob = jobs.jobs.find((job) => job.name === 'Build Linux Preview Bundle');
+            const linuxJob = jobs.jobs.find((job) => job.name === 'Build Linux Preview AppImage');
             const shortSha = run.head_sha.slice(0, 7);
             const statusMap = {
               success: 'Ready',
@@ -160,7 +160,7 @@ jobs:
               ];
 
               if (apkUrl) bodyLines.push(`- [Download APK](${apkUrl}) ([build log](${buildUrl}))`);
-              if (linuxUrl) bodyLines.push(`- [Download Linux bundle](${linuxUrl}) ([build log](${linuxBuildUrl}))`);
+              if (linuxUrl) bodyLines.push(`- [Download Linux AppImage](${linuxUrl}) ([build log](${linuxBuildUrl}))`);
 
               bodyLines.push(
                 '- Merge gate: `Preview` passed',
@@ -180,7 +180,7 @@ jobs:
               ];
 
               if (apkUrl) bodyLines.push(`- [Last APK artifact](${apkUrl})`);
-              if (linuxUrl) bodyLines.push(`- [Last Linux artifact](${linuxUrl})`);
+              if (linuxUrl) bodyLines.push(`- [Last Linux AppImage](${linuxUrl})`);
 
               bodyLines.push(
                 '- Merge gate: `Preview` must pass before merge',

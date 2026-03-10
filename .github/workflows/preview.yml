@@ -27,7 +27,7 @@ jobs:
       apk_artifact_name: ${{ steps.meta.outputs.apk_artifact_name }}
       apk_name: ${{ steps.meta.outputs.apk_name }}
       linux_artifact_name: ${{ steps.meta.outputs.linux_artifact_name }}
-      linux_archive_name: ${{ steps.meta.outputs.linux_archive_name }}
+      linux_appimage_name: ${{ steps.meta.outputs.linux_appimage_name }}
     steps:
       - name: Compute preview metadata
         id: meta
@@ -53,14 +53,14 @@ jobs:
           APK_NAME="AQWPocket-${TAG_VERSION}.apk"
           APK_ARTIFACT_NAME="$APK_NAME"
 
-          LINUX_ARCHIVE_NAME="AQWPocket-linux-${TAG_VERSION}.tar.gz"
-          LINUX_ARTIFACT_NAME="$LINUX_ARCHIVE_NAME"
+          LINUX_APPIMAGE_NAME="AQWPocket-${TAG_VERSION}-x86_64.AppImage"
+          LINUX_ARTIFACT_NAME="$LINUX_APPIMAGE_NAME"
 
           echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
           echo "apk_artifact_name=${APK_ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "linux_archive_name=${LINUX_ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "linux_appimage_name=${LINUX_APPIMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "linux_artifact_name=${LINUX_ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
   build_universal_preview:
@@ -209,7 +209,7 @@ jobs:
           retention-days: 7
 
   build_linux_preview:
-    name: Build Linux Preview Bundle
+    name: Build Linux Preview AppImage
     runs-on: ubuntu-latest
     needs: prepare
     permissions:
@@ -238,22 +238,23 @@ jobs:
           sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
 
-      - name: Build Linux bundle
+      - name: Build Linux AppImage
         run: |
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
-            -e ARCHIVE_NAME="$ARCHIVE_NAME" \
+            -e APPIMAGE_NAME="$APPIMAGE_NAME" \
+            --privileged \
             "$DOCKER_IMAGE" \
             sh -c '
               set -eu
-              echo "[1/4] Patching latest Game.swf..."
+              echo "[1/5] Patching latest Game.swf..."
               java scripts/patch.java
-              echo "[2/4] Preparing loader gamefiles..."
+              echo "[2/5] Preparing loader gamefiles..."
               mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
-              echo "[3/4] Compiling Loader.swf (linux)..."
+              echo "[3/5] Compiling Loader.swf (linux)..."
               amxmlc -output app/Loader.swf app/src/Main.as
-              echo "[4/4] Packaging linux bundle..."
+              echo "[4/5] Packaging AIR bundle..."
               mkdir -p build && rm -rf build/AQWPocket-linux
               adt -certificate -cn "AQW Pocket" 2048-RSA /tmp/bundle.p12 bundlepass
               adt -package \
@@ -264,18 +265,25 @@ jobs:
                 icons/android-icon-72x72.png icons/android-icon-96x96.png \
                 icons/android-icon-144x144.png icons/android-icon-192x192.png \
                 gamefiles/Game.swf
-              tar -czf "build/$ARCHIVE_NAME" -C build AQWPocket-linux
-              rm -rf build/AQWPocket-linux
+              echo "[5/5] Creating AppImage..."
+              mkdir -p build/AQWPocket.AppDir
+              cp -a build/AQWPocket-linux build/AQWPocket.AppDir/AQWPocket-linux
+              cp linux/AppRun build/AQWPocket.AppDir/AppRun
+              chmod +x build/AQWPocket.AppDir/AppRun
+              cp linux/AQWPocket.desktop build/AQWPocket.AppDir/AQWPocket.desktop
+              cp app/icons/android-icon-192x192.png build/AQWPocket.AppDir/AQWPocket.png
+              ARCH=x86_64 $APPIMAGETOOL build/AQWPocket.AppDir "build/$APPIMAGE_NAME"
+              rm -rf build/AQWPocket-linux build/AQWPocket.AppDir
               echo "Done."
             '
         env:
-          ARCHIVE_NAME: ${{ needs.prepare.outputs.linux_archive_name }}
+          APPIMAGE_NAME: ${{ needs.prepare.outputs.linux_appimage_name }}
 
-      - name: Upload Linux bundle artifact
+      - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ needs.prepare.outputs.linux_artifact_name }}
-          path: build/${{ needs.prepare.outputs.linux_archive_name }}
+          path: build/${{ needs.prepare.outputs.linux_appimage_name }}
           archive: false
           if-no-files-found: error
           retention-days: 7
@@ -294,7 +302,7 @@ jobs:
           fi
 
           if [ "${{ needs.build_linux_preview.result }}" != "success" ]; then
-            echo "Preview Linux bundle build failed."
+            echo "Preview Linux AppImage build failed."
             exit 1
           fi
 

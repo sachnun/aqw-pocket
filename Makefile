@@ -120,23 +120,23 @@ build-armv7 build-armv8 build-aab build-universal:
 	fi && \
 	echo "Done."'
 
-# ── Linux bundle ────────────────────────────────────────────
+# ── Linux AppImage ──────────────────────────────────────────
 
 build-linux:
 	$(DOCKER) sh -c '\
 	set -eu && \
 	\
 	if [ "$(SKIP_PATCH)" != "1" ]; then \
-	  echo "[1/4] Patching latest Game.swf..." && java scripts/patch.java; \
+	  echo "[1/5] Patching latest Game.swf..." && java scripts/patch.java; \
 	else \
-	  echo "[1/4] Skip patch (SKIP_PATCH=1)"; \
+	  echo "[1/5] Skip patch (SKIP_PATCH=1)"; \
 	fi && \
 	test -f assets/Game.swf || { echo "Missing assets/Game.swf"; exit 1; } && \
 	\
-	echo "[2/4] Preparing loader gamefiles..." && \
+	echo "[2/5] Preparing loader gamefiles..." && \
 	mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf && \
 	\
-	echo "[3/4] Compiling Loader.swf (linux)..." && \
+	echo "[3/5] Compiling Loader.swf (linux)..." && \
 	amxmlc -output app/Loader.swf app/src/Main.as && \
 	\
 	P12=".signing/dev.p12" && \
@@ -147,7 +147,7 @@ build-linux:
 	  adt -certificate -cn "AQW Pocket Dev" 2048-RSA "$$P12" "$$P12_PASS"; \
 	fi && \
 	\
-	echo "[4/4] Packaging linux bundle..." && \
+	echo "[4/5] Packaging AIR bundle..." && \
 	mkdir -p build && rm -rf build/AQWPocket-linux && \
 	adt -package \
 	  -storetype pkcs12 -keystore "$$P12" -storepass "$$P12_PASS" \
@@ -157,7 +157,18 @@ build-linux:
 	  icons/android-icon-72x72.png icons/android-icon-96x96.png \
 	  icons/android-icon-144x144.png icons/android-icon-192x192.png \
 	  gamefiles/Game.swf && \
-	echo "Done. Linux bundle: build/AQWPocket-linux/"'
+	\
+	echo "[5/5] Creating AppImage..." && \
+	rm -rf build/AQWPocket.AppDir && \
+	mkdir -p build/AQWPocket.AppDir && \
+	cp -a build/AQWPocket-linux build/AQWPocket.AppDir/AQWPocket-linux && \
+	cp linux/AppRun build/AQWPocket.AppDir/AppRun && \
+	chmod +x build/AQWPocket.AppDir/AppRun && \
+	cp linux/AQWPocket.desktop build/AQWPocket.AppDir/AQWPocket.desktop && \
+	cp app/icons/android-icon-192x192.png build/AQWPocket.AppDir/AQWPocket.png && \
+	ARCH=x86_64 $$APPIMAGETOOL build/AQWPocket.AppDir build/AQWPocket-x86_64.AppImage && \
+	rm -rf build/AQWPocket-linux build/AQWPocket.AppDir && \
+	echo "Done. AppImage: build/AQWPocket-x86_64.AppImage"'
 
 # ── Utilities ───────────────────────────────────────────────
 
@@ -171,12 +182,12 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  build            Build universal APK + Linux bundle"
+	@echo "  build            Build universal APK + Linux AppImage"
 	@echo "  build-armv7      Build armv7 APK only"
 	@echo "  build-armv8      Build armv8 APK only"
 	@echo "  build-aab        Build AAB"
 	@echo "  build-universal  Full pipeline: AAB -> normalize -> universal APK"
-	@echo "  build-linux      Build Linux bundle"
+	@echo "  build-linux      Build Linux AppImage"
 	@echo ""
 	@echo "Options (via environment or make args):"
 	@echo "  SKIP_PATCH=1     Skip Game.swf patching step"

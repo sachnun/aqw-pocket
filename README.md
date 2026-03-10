@@ -4,12 +4,19 @@ Unofficial AdventureQuest Worlds client for Android and Linux.
 
 ## Download
 
-Get the latest APK and Linux bundle from [Releases](../../releases/latest).
+Get the latest APK and Linux AppImage from [Releases](../../releases/latest).
+
+### Linux
+
+```bash
+chmod +x AQWPocket-*-x86_64.AppImage
+./AQWPocket-*-x86_64.AppImage
+```
 
 ## Features
 
 - Native Android client (Adobe AIR)
-- Linux desktop bundle (embedded AIR runtime)
+- Linux desktop AppImage (single file, no installation needed)
 - Touch controls (joystick + combat buttons)
 - In-app update checker with release banner
 - Background service support when app is minimized
@@ -27,9 +34,9 @@ make build
 
 | Target | Description |
 |---|---|
-| `make build` | Build universal APK + Linux bundle (default) |
+| `make build` | Build universal APK + Linux AppImage (default) |
 | `make build-universal` | Full pipeline: AAB -> universal APK |
-| `make build-linux` | Build Linux desktop bundle |
+| `make build-linux` | Build Linux AppImage |
 | `make build-armv7` | Build armv7 APK only |
 | `make build-armv8` | Build armv8 APK only |
 | `make build-aab` | Build AAB |

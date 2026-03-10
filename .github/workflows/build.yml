@@ -236,14 +236,14 @@ jobs:
           if-no-files-found: error
 
   build_linux:
-    name: Build Linux Bundle
+    name: Build Linux AppImage
     runs-on: ubuntu-latest
     needs: prepare
     permissions:
       contents: read
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
-      archive_name: ${{ steps.meta.outputs.archive_name }}
+      appimage_name: ${{ steps.meta.outputs.appimage_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -253,9 +253,9 @@ jobs:
       - name: Set output names
         id: meta
         run: |
-          ARCHIVE_NAME="AQWPocket-linux-${{ needs.prepare.outputs.tag_version }}.tar.gz"
-          ARTIFACT_NAME="linux-bundle-${{ needs.prepare.outputs.tag_version }}"
-          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          APPIMAGE_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-x86_64.AppImage"
+          ARTIFACT_NAME="linux-appimage-${{ needs.prepare.outputs.tag_version }}"
+          echo "appimage_name=${APPIMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -276,22 +276,23 @@ jobs:
           sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
 
-      - name: Build Linux bundle
+      - name: Build Linux AppImage
         run: |
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
-            -e ARCHIVE_NAME="$ARCHIVE_NAME" \
+            -e APPIMAGE_NAME="$APPIMAGE_NAME" \
+            --privileged \
             "$DOCKER_IMAGE" \
             sh -c '
               set -eu
-              echo "[1/4] Patching latest Game.swf..."
+              echo "[1/5] Patching latest Game.swf..."
               java scripts/patch.java
-              echo "[2/4] Preparing loader gamefiles..."
+              echo "[2/5] Preparing loader gamefiles..."
               mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
-              echo "[3/4] Compiling Loader.swf (linux)..."
+              echo "[3/5] Compiling Loader.swf (linux)..."
               amxmlc -output app/Loader.swf app/src/Main.as
-              echo "[4/4] Packaging linux bundle..."
+              echo "[4/5] Packaging AIR bundle..."
               mkdir -p build && rm -rf build/AQWPocket-linux
               adt -certificate -cn "AQW Pocket" 2048-RSA /tmp/bundle.p12 bundlepass
               adt -package \
@@ -302,18 +303,25 @@ jobs:
                 icons/android-icon-72x72.png icons/android-icon-96x96.png \
                 icons/android-icon-144x144.png icons/android-icon-192x192.png \
                 gamefiles/Game.swf
-              tar -czf "build/$ARCHIVE_NAME" -C build AQWPocket-linux
-              rm -rf build/AQWPocket-linux
+              echo "[5/5] Creating AppImage..."
+              mkdir -p build/AQWPocket.AppDir
+              cp -a build/AQWPocket-linux build/AQWPocket.AppDir/AQWPocket-linux
+              cp linux/AppRun build/AQWPocket.AppDir/AppRun
+              chmod +x build/AQWPocket.AppDir/AppRun
+              cp linux/AQWPocket.desktop build/AQWPocket.AppDir/AQWPocket.desktop
+              cp app/icons/android-icon-192x192.png build/AQWPocket.AppDir/AQWPocket.png
+              ARCH=x86_64 $APPIMAGETOOL build/AQWPocket.AppDir "build/$APPIMAGE_NAME"
+              rm -rf build/AQWPocket-linux build/AQWPocket.AppDir
               echo "Done."
             '
         env:
-          ARCHIVE_NAME: ${{ steps.meta.outputs.archive_name }}
+          APPIMAGE_NAME: ${{ steps.meta.outputs.appimage_name }}
 
-      - name: Upload Linux bundle artifact
+      - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.meta.outputs.artifact_name }}
-          path: build/${{ steps.meta.outputs.archive_name }}
+          path: build/${{ steps.meta.outputs.appimage_name }}
           if-no-files-found: error
 
   release:
@@ -335,7 +343,7 @@ jobs:
           name: ${{ needs.build_universal.outputs.artifact_name }}
           path: build
 
-      - name: Download Linux bundle artifact
+      - name: Download Linux AppImage artifact
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build_linux.outputs.artifact_name }}
@@ -357,7 +365,7 @@ jobs:
 
           gh release create "${{ needs.prepare.outputs.tag_version }}" \
             "build/${{ needs.build_universal.outputs.apk_name }}" \
-            "build/${{ needs.build_linux.outputs.archive_name }}" \
+            "build/${{ needs.build_linux.outputs.appimage_name }}" \
             --title "${{ needs.prepare.outputs.tag_version }}" \
             --generate-notes \
             $PRERELEASE_FLAG
