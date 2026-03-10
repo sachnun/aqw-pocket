@@ -1,0 +1,36 @@
+# Build artifacts
+build/
+assets/
+target/
+
+# Tool caches
+.cache-tools/
+
+# Compiled outputs
+app/Loader.swf
+app/gamefiles/
+app/extensions/*.ane
+ane/build/
+scripts/*.class
+
+# Signing
+temp_keystore.jks
+.signing/
+signing.env
+signing.env.*
+
+# Packages
+*.apk
+*.aab
+*.apks
+
+# Git
+.git/
+.github/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker (avoid recursive context)
+docker-compose.yml

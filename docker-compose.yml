@@ -1,0 +1,11 @@
+services:
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+    image: aqw-pocket-build
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: ["./scripts/build.sh"]
