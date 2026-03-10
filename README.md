@@ -16,19 +16,13 @@ Get the latest APK from [Releases](../../releases/latest).
 
 ## Build
 
-### Docker (recommended)
-
-Requirements: [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
-
-All dependencies (AIR SDK, Android SDK, RABCDAsm, JDK) are bundled in the Docker image. The AIR SDK zip is included locally in `sdk/` to avoid slow/unstable downloads during build.
+Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). All dependencies are bundled in the image.
 
 ```bash
 git clone https://github.com/sachnun/aqw-pocket.git
 cd aqw-pocket
 make build
 ```
-
-Available make targets:
 
 | Target | Description |
 |---|---|
@@ -39,9 +33,7 @@ Available make targets:
 | `make build-universal` | Full pipeline: AAB -> universal APK |
 | `make clean` | Remove all build artifacts |
 
-Output APKs will be in the `build/` directory.
-
-Builds are also available via [GitHub Actions](../../actions).
+Output APKs will be in `build/`.
 
 ## Credits
 
