@@ -188,11 +188,10 @@ jobs:
         run: rm -rf .signing
 
       - name: Upload universal APK artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.meta.outputs.artifact_name }}
           path: build/${{ steps.meta.outputs.apk_name }}
-          archive: false
           if-no-files-found: error
 
   release:
@@ -209,7 +208,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download APK artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build_universal.outputs.artifact_name }}
           path: build
