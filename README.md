@@ -26,12 +26,6 @@ chmod +x AQWPocket-*-x86_64.AppImage
 
 Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). All dependencies are bundled in the image.
 
-```bash
-git clone https://github.com/sachnun/aqw-pocket.git
-cd aqw-pocket
-make build
-```
-
 | Target | Description |
 |---|---|
 | `make build` | Build universal APK + Linux AppImage (default) |
