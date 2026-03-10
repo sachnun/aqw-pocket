@@ -74,6 +74,16 @@ COPY --from=builder /opt/android-sdk          /opt/android-sdk
 COPY --from=builder /opt/bundletool           /opt/bundletool
 
 # -----------------------------------------------------------
+# Linux desktop runtime dependencies (for adt -target bundle)
+# -----------------------------------------------------------
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        libgtk2.0-0 libgdk-pixbuf2.0-0 libpango-1.0-0 \
+        libx11-6 libxcursor1 libxrender1 libxml2 \
+        libnss3 libnspr4 libgl1 && \
+    rm -rf /var/lib/apt/lists/*
+
+# -----------------------------------------------------------
 # Android SDK platform and build-tools (needs Java from base)
 # -----------------------------------------------------------
 RUN yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true && \
