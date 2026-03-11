@@ -2,6 +2,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -33,6 +34,10 @@ public class tools {
             case "inspect-native-libs":
                 requireArgCount(args, 2);
                 inspectNativeLibs(Path.of(args[1]));
+                return;
+            case "patch-air-license":
+                requireArgCount(args, 2);
+                patchAirLicense(Path.of(args[1]));
                 return;
             default:
                 System.err.println("Unknown command: " + args[0]);
@@ -116,6 +121,72 @@ public class tools {
         }
     }
 
+    /**
+     * Patch libCore.so to bypass the AIR commercial license check.
+     *
+     * The AIR runtime contains a function that prints
+     * "Adobe AIR - Linux runtime is limited to use by commercially licensed
+     * developers" and calls exit(0). We locate this function by searching for
+     * a unique byte signature (push rbx; mov rbx,[rip+disp] loading stderr;
+     * lea rdx,[rip+disp] loading the asterisk banner; mov esi,1; xor eax,eax)
+     * and replace the first byte (0x53 push rbx) with 0xC3 (ret) so the
+     * function returns immediately without printing or exiting.
+     */
+    private static void patchAirLicense(Path libCorePath) throws IOException {
+        // Signature: push rbx / mov rbx,[rip+??] / lea rdx,[rip+??] / mov esi,1 / xor eax,eax
+        // Bytes:     53 48 8b 1d ?? ?? ?? ?? 48 8d 15 ?? ?? ?? ?? be 01 00 00 00 31 c0
+        // We match fixed bytes and skip wildcard positions (the RIP-relative displacements).
+        byte[] fixed  = { 0x53, 0x48, (byte)0x8b, 0x1d,
+                          /*4-7: wildcard*/
+                          0x48, (byte)0x8d, 0x15,
+                          /*11-14: wildcard*/
+                          (byte)0xbe, 0x01, 0x00, 0x00, 0x00,
+                          0x31, (byte)0xc0 };
+        int[] fixedIdx = { 0, 1, 2, 3,          // 53 48 8b 1d
+                           8, 9, 10,             // 48 8d 15
+                           15, 16, 17, 18, 19,   // be 01 00 00 00
+                           20, 21 };             // 31 c0
+        int patternLen = 22; // total bytes in the window
+
+        byte[] data = Files.readAllBytes(libCorePath);
+
+        int matchOffset = -1;
+        for (int i = 0; i <= data.length - patternLen; i++) {
+            boolean match = true;
+            for (int fi = 0; fi < fixedIdx.length; fi++) {
+                int pos = fixedIdx[fi];
+                if (data[i + pos] != fixed[fi]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                if (matchOffset != -1) {
+                    throw new IOException(
+                        "Multiple license-check signatures found (0x"
+                        + Integer.toHexString(matchOffset) + " and 0x"
+                        + Integer.toHexString(i) + "); aborting");
+                }
+                matchOffset = i;
+            }
+        }
+
+        if (matchOffset == -1) {
+            throw new IOException(
+                "License-check signature not found in " + libCorePath
+                + "; the AIR SDK version may have changed");
+        }
+
+        // Patch: replace push %rbx (0x53) with ret (0xC3)
+        try (RandomAccessFile raf = new RandomAccessFile(libCorePath.toFile(), "rw")) {
+            raf.seek(matchOffset);
+            raf.writeByte(0xC3);
+        }
+
+        System.out.printf("Patched AIR license check at offset 0x%x in %s%n",
+                matchOffset, libCorePath);
+    }
+
     private static void inspectNativeLibs(Path archivePath) throws IOException {
         long sizeBytes = Files.size(archivePath);
         double sizeMiB = sizeBytes / (1024.0 * 1024.0);
@@ -197,5 +268,6 @@ public class tools {
         System.err.println("  java scripts/tools.java extract-library-swf <input.swc> <output.swf>");
         System.err.println("  java scripts/tools.java normalize-aab <input.aab> <output.aab>");
         System.err.println("  java scripts/tools.java inspect-native-libs <input.apk>");
+        System.err.println("  java scripts/tools.java patch-air-license <libCore.so>");
     }
 }

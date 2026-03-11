@@ -157,6 +157,8 @@ build-linux:
 	done && \
 	mkdir -p "$$BUNDLE/gamefiles" && \
 	cp app/gamefiles/Game.swf "$$BUNDLE/gamefiles/Game.swf" && \
+	java scripts/tools.java patch-air-license \
+	  "$$BUNDLE/Adobe AIR/Versions/1.0/libCore.so" && \
 	\
 	echo "[5/5] Creating AppImage..." && \
 	rm -rf build/AQWPocket.AppDir && \
