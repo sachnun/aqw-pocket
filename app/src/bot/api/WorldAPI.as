@@ -101,6 +101,24 @@ package bot.api {
 			game.world.sendMoveRequest(mapName, cell, pad);
 		}
 
+		/**
+		 * Set the player's respawn point to the given cell/pad.
+		 * When the player dies and respawns, the game will move them to this location
+		 * instead of the default map entrance ("Enter"/"Spawn").
+		 */
+		public static function setSpawnPoint(cell:String, pad:String):void {
+			var world:* = GameAccessor.game.world;
+			if (world == null) return;
+			world.setSpawnPoint(cell, pad);
+		}
+
+		/** Reset the spawn point back to the default ("Enter"/"Spawn") */
+		public static function resetSpawnPoint():void {
+			var world:* = GameAccessor.game.world;
+			if (world == null) return;
+			world.resetSpawnPoint();
+		}
+
 		/** Disable death ad popup */
 		public static function disableDeathAd(enable:Boolean):void {
 			GameAccessor.game.userPreference.data.bDeathAd = !enable;
