@@ -5,7 +5,7 @@ package bot.ui {
 	import flash.text.*;
 
 	import bot.BotController;
-	import bot.module.Modules;
+	import bot.GameAccessor;
 
 	/**
 	 * BotPanel - on-screen control panel for bot operations.
@@ -43,6 +43,13 @@ package bot.ui {
 		private var killLagBtn:Sprite;
 		private var killLagLabel:TextField;
 		private var killLagEnabled:Boolean = false;
+		private var spawnInPlaceBtn:Sprite;
+		private var spawnInPlaceLabel:TextField;
+
+		// Spawn-in-place state (runs directly here since module onFrame doesn't fire)
+		private var _sipSavedCell:String = "";
+		private var _sipSavedPad:String = "Left";
+		private var _sipDead:Boolean = false;
 
 		public function BotPanel() {
 			buildPanel();
@@ -133,7 +140,20 @@ package bot.ui {
 			killLagBtn.x = MARGIN;
 			killLagBtn.y = yOff;
 			content.addChild(killLagBtn);
+
+			var sipResult:Object = makeToggleButton("Spawn In Cell", halfW, function ():void {
+				BotController.toggleSpawnInPlace();
+				updateModuleBtns();
+			});
+			spawnInPlaceBtn = sipResult.btn;
+			spawnInPlaceLabel = sipResult.label;
+			spawnInPlaceBtn.x = MARGIN + halfW + 4;
+			spawnInPlaceBtn.y = yOff;
+			content.addChild(spawnInPlaceBtn);
 			yOff += ROW_H + 6;
+
+			// Update debug label every frame
+			addEventListener(Event.ENTER_FRAME, onFrameUpdate);
 
 			// Resize background to fit
 			drawBackgroundWithHeight(HEADER_H + yOff + 10);
@@ -152,6 +172,59 @@ package bot.ui {
 
 			killLagLabel.textColor = killLagEnabled ? COL_ACCENT : COL_TEXT;
 			drawBtnBg(killLagBtn, halfW, killLagEnabled ? COL_BTN_ACTIVE : COL_BTN);
+
+			var sip:Boolean = BotController.isSpawnInPlaceEnabled();
+			spawnInPlaceLabel.textColor = sip ? COL_ACCENT : COL_TEXT;
+			drawBtnBg(spawnInPlaceBtn, halfW, sip ? COL_BTN_ACTIVE : COL_BTN);
+		}
+
+		// ==========================================
+		// Frame update for spawn-in-place logic
+		// ==========================================
+
+		private function onFrameUpdate(e:Event):void {
+			var sipOn:Boolean = BotController.isSpawnInPlaceEnabled();
+			if (!sipOn) {
+				if (_sipDead) _sipDead = false;
+				if (_sipSavedCell != "") _sipSavedCell = "";
+				return;
+			}
+
+			try {
+				var game:* = GameAccessor.game;
+				if (game == null || game.world == null || game.world.myAvatar == null) return;
+
+				var dl:* = game.world.myAvatar.dataLeaf;
+				if (dl == null) return;
+
+				var hp:int = int(dl.intHP);
+				var cell:String = String(game.world.strFrame || "");
+				var pad:String = String(game.world.strPad || "Left");
+
+				if (hp > 0) {
+					// Alive: save current cell and set spawn point
+					if (cell != "" && cell != "Blank") {
+						_sipSavedCell = cell;
+						_sipSavedPad = pad;
+						try {
+							game.world.setSpawnPoint(cell, pad);
+						} catch (spErr:Error) {}
+					}
+
+					if (_sipDead) {
+						// Just respawned — jump back if server moved us
+						_sipDead = false;
+						if (_sipSavedCell != "" && cell != _sipSavedCell && cell != "Blank") {
+							try {
+								game.world.moveToCell(_sipSavedCell, _sipSavedPad);
+							} catch (mvErr:Error) {}
+						}
+					}
+				} else if (!_sipDead) {
+					// Just died
+					_sipDead = true;
+				}
+			} catch (err:Error) {}
 		}
 
 		// ==========================================

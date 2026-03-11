@@ -247,6 +247,18 @@ package bot {
 			return Modules.isEnabled("DisableCollisions");
 		}
 
+		// Spawn-in-place state
+		private static var _spawnInPlaceEnabled:Boolean = false;
+
+		public static function toggleSpawnInPlace():Boolean {
+			_spawnInPlaceEnabled = !_spawnInPlaceEnabled;
+			return _spawnInPlaceEnabled;
+		}
+
+		public static function isSpawnInPlaceEnabled():Boolean {
+			return _spawnInPlaceEnabled;
+		}
+
 		// ==========================================
 		// QUICK ACTIONS
 		// ==========================================
