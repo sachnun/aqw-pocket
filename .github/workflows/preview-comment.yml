@@ -41,7 +41,7 @@ jobs:
               `Commit: \`${shortSha}\``,
               '',
               `- Checks: ${process.env.CHECKS_URL}`,
-              '- Artifacts: preparing preview builds (APK + Linux)',
+              '- Artifacts: preparing preview builds (APK + Linux + Windows)',
               '- Merge gate: waiting for `Preview`',
               '',
               'This comment updates automatically whenever the PR changes.',
@@ -124,8 +124,10 @@ jobs:
 
             const apkArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
             const linuxArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.AppImage'));
+            const windowsArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.exe'));
             const buildJob = jobs.jobs.find((job) => job.name === 'Build Universal Preview APK');
             const linuxJob = jobs.jobs.find((job) => job.name === 'Build Linux Preview AppImage');
+            const windowsJob = jobs.jobs.find((job) => job.name === 'Build Windows Preview Exe');
             const shortSha = run.head_sha.slice(0, 7);
             const statusMap = {
               success: 'Ready',
@@ -139,6 +141,7 @@ jobs:
             const runUrl = run.html_url;
             const buildUrl = buildJob ? buildJob.html_url : runUrl;
             const linuxBuildUrl = linuxJob ? linuxJob.html_url : runUrl;
+            const windowsBuildUrl = windowsJob ? windowsJob.html_url : runUrl;
 
             const makeArtifactUrl = (artifact) =>
               artifact
@@ -147,9 +150,10 @@ jobs:
 
             const apkUrl = makeArtifactUrl(apkArtifact);
             const linuxUrl = makeArtifactUrl(linuxArtifact);
+            const windowsUrl = makeArtifactUrl(windowsArtifact);
 
             let bodyLines;
-            if (conclusion === 'success' && (apkUrl || linuxUrl)) {
+            if (conclusion === 'success' && (apkUrl || linuxUrl || windowsUrl)) {
               bodyLines = [
                 marker,
                 '## Preview',
@@ -161,6 +165,7 @@ jobs:
 
               if (apkUrl) bodyLines.push(`- [Download APK](${apkUrl}) ([build log](${buildUrl}))`);
               if (linuxUrl) bodyLines.push(`- [Download Linux AppImage](${linuxUrl}) ([build log](${linuxBuildUrl}))`);
+              if (windowsUrl) bodyLines.push(`- [Download Windows Exe](${windowsUrl}) ([build log](${windowsBuildUrl}))`);
 
               bodyLines.push(
                 '- Merge gate: `Preview` passed',
@@ -181,6 +186,7 @@ jobs:
 
               if (apkUrl) bodyLines.push(`- [Last APK artifact](${apkUrl})`);
               if (linuxUrl) bodyLines.push(`- [Last Linux AppImage](${linuxUrl})`);
+              if (windowsUrl) bodyLines.push(`- [Last Windows Exe](${windowsUrl})`);
 
               bodyLines.push(
                 '- Merge gate: `Preview` must pass before merge',
