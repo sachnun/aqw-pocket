@@ -22,26 +22,41 @@ WORKDIR /tmp/rabcdasm
 RUN PATH="/opt/dmd2/linux/bin64:$PATH" \
     dmd -run build_rabcdasm.d abcexport rabcdasm rabcasm abcreplace
 
-# Copy local AIR SDK zip and download remaining tools
+# Download all tools (no local SDK copy needed)
 WORKDIR /
 ARG BUNDLETOOL_VERSION=1.18.2
 ARG CMDLINE_TOOLS_URL=https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-
-COPY sdk/AIRSDK_Linux.zip /tmp/air_sdk.zip
-
 ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+
+# AIR SDK version — single ARG controls both Linux and Windows downloads
+ARG AIR_VERSION=51.0.1.3
+ARG AIR_SDK_BASE_URL=https://airsdk.harman.com/api/versions/${AIR_VERSION}/sdks
+
+# 7-Zip Extra (contains 7zSD.sfx — Windows SFX stub for portable exe)
+ARG SEVENZIP_EXTRA_URL=https://www.7-zip.org/a/7z2409-extra.7z
 
 SHELL ["/bin/bash", "-c"]
 RUN echo "Downloading tools in parallel..." && \
+    curl -fSL -o /tmp/air_sdk.zip       "${AIR_SDK_BASE_URL}/AIRSDK_Linux.zip?license=accepted" & \
+    curl -fSL -o /tmp/air_win_sdk.zip   "${AIR_SDK_BASE_URL}/AIRSDK_Windows.zip?license=accepted" & \
     curl -fSL -o /tmp/cmdline-tools.zip "${CMDLINE_TOOLS_URL}" & \
     curl -fSL -o /tmp/bundletool.jar \
         "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar" & \
     curl -fSL -o /tmp/appimagetool.AppImage "${APPIMAGETOOL_URL}" & \
+    curl -fSL -o /tmp/7z-extra.7z "${SEVENZIP_EXTRA_URL}" & \
     wait && \
-    # Install AIR SDK
+    # Install AIR SDK (Linux — compiler toolchain + Linux runtime)
     mkdir -p /opt/air_sdk && \
     unzip -o -q /tmp/air_sdk.zip -d /opt/air_sdk && \
     chmod -R +x /opt/air_sdk/bin && \
+    # Install AIR SDK Windows runtime (for cross-packaging Windows bundles)
+    mkdir -p /opt/air_win_sdk && \
+    unzip -o -q /tmp/air_win_sdk.zip 'runtimes/air/win/*' -d /opt/air_win_sdk && \
+    # Extract 7z SFX stub (need p7zip to unpack .7z)
+    apt-get update -qq && apt-get install -y --no-install-recommends p7zip-full && \
+    mkdir -p /opt/7z-sfx && \
+    7z e -o/opt/7z-sfx /tmp/7z-extra.7z 7zSD.sfx && \
+    apt-get purge -y p7zip-full && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* && \
     # Install Android cmdline-tools
     mkdir -p /opt/android-sdk/cmdline-tools && \
     unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools && \
@@ -54,7 +69,7 @@ RUN echo "Downloading tools in parallel..." && \
     cd /tmp && ./appimagetool.AppImage --appimage-extract && \
     mv /tmp/squashfs-root /opt/appimagetool && \
     # Cleanup
-    rm -f /tmp/air_sdk.zip /tmp/cmdline-tools.zip /tmp/appimagetool.AppImage
+    rm -f /tmp/air_sdk.zip /tmp/air_win_sdk.zip /tmp/7z-extra.7z /tmp/cmdline-tools.zip /tmp/appimagetool.AppImage
 
 # ============================================================
 # Stage 2: Final image (zero apt-get!)
@@ -77,6 +92,8 @@ COPY --from=builder /tmp/rabcdasm/rabcdasm    /usr/local/bin/
 COPY --from=builder /tmp/rabcdasm/rabcasm     /usr/local/bin/
 COPY --from=builder /tmp/rabcdasm/abcreplace  /usr/local/bin/
 COPY --from=builder /opt/air_sdk              /opt/air_sdk
+COPY --from=builder /opt/air_win_sdk          /opt/air_win_sdk
+COPY --from=builder /opt/7z-sfx               /opt/7z-sfx
 COPY --from=builder /opt/android-sdk          /opt/android-sdk
 COPY --from=builder /opt/bundletool           /opt/bundletool
 COPY --from=builder /opt/appimagetool         /opt/appimagetool
@@ -88,7 +105,7 @@ RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
         libgtk2.0-0 libgdk-pixbuf2.0-0 libpango-1.0-0 \
         libx11-6 libxcursor1 libxrender1 libxml2 \
-        libnss3 libnspr4 libgl1 file && \
+        libnss3 libnspr4 libgl1 file p7zip-full && \
     rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------
@@ -104,6 +121,8 @@ RUN yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev
 # Environment
 # -----------------------------------------------------------
 ENV AIR_HOME=/opt/air_sdk
+ENV AIR_WIN_RUNTIME=/opt/air_win_sdk/runtimes/air/win
+ENV SFX_MODULE=/opt/7z-sfx/7zSD.sfx
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV ANDROID_JAR=/opt/android-sdk/platforms/android-34/android.jar
 ENV BUNDLETOOL_JAR=/opt/bundletool/bundletool.jar

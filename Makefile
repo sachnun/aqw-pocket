@@ -6,11 +6,11 @@ _PATCH_FLAG = $(if $(filter 1,$(SKIP_PATCH)),--skip-patch)
 _ANE_FLAG   = $(if $(filter 1,$(SKIP_ANE)),--skip-ane)
 
 .PHONY: build build-armv7 build-armv8 build-aab build-universal \
-        build-linux clean help
+        build-linux build-windows clean help
 
 # ── Default: APK + Desktop ─────────────────────────────────
 
-build: build-universal build-linux
+build: build-universal build-linux build-windows
 
 # ── Android builds ─────────────────────────────────────────
 
@@ -31,6 +31,11 @@ build-universal:
 build-linux:
 	$(DOCKER) scripts/build-linux.sh $(_PATCH_FLAG)
 
+# ── Windows bundle ──────────────────────────────────────────
+
+build-windows:
+	$(DOCKER) scripts/build-windows.sh $(_PATCH_FLAG)
+
 # ── Utilities ───────────────────────────────────────────────
 
 ## Remove all build artifacts
@@ -43,12 +48,13 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  build            Build universal APK + Linux AppImage"
+	@echo "  build            Build universal APK + Linux AppImage + Windows bundle"
 	@echo "  build-armv7      Build armv7 APK only"
 	@echo "  build-armv8      Build armv8 APK only"
 	@echo "  build-aab        Build AAB"
 	@echo "  build-universal  Full pipeline: AAB -> normalize -> universal APK"
 	@echo "  build-linux      Build Linux AppImage"
+	@echo "  build-windows    Build Windows x64 bundle (zip)"
 	@echo ""
 	@echo "Options (via environment or make args):"
 	@echo "  SKIP_PATCH=1     Skip Game.swf patching step"

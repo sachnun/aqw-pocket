@@ -2,6 +2,7 @@
 build/
 assets/
 target/
+sdk/
 
 # Tool caches
 .cache-tools/
