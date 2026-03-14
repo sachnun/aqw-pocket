@@ -1,22 +1,15 @@
 # AQW Pocket
 
-Unofficial AdventureQuest Worlds client for Android and Linux.
+Unofficial cross-platform AdventureQuest Worlds client.
 
 ## Download
 
-Get the latest APK and Linux AppImage from [Releases](../../releases/latest).
+Grab the latest build for your platform from [Releases](../../releases/latest).
 
-### Linux
-
-```bash
-chmod +x AQWPocket-*-x86_64.AppImage
-./AQWPocket-*-x86_64.AppImage
-```
+> On Linux, make the AppImage executable first: `chmod +x AQWPocket-*-x86_64.AppImage`
 
 ## Features
 
-- Native Android client (Adobe AIR)
-- Linux desktop AppImage (single file, no installation needed)
 - Touch controls (joystick + combat buttons)
 - In-app update checker with release banner
 - Background service support when app is minimized
