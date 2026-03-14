@@ -78,6 +78,7 @@ RUN echo "Downloading tools in parallel..." && \
 FROM eclipse-temurin:17-jdk-jammy
 
 LABEL org.opencontainers.image.description="AQW Pocket build environment"
+LABEL org.opencontainers.image.source="https://github.com/sachnun/aqw-pocket"
 
 ARG ANDROID_PLATFORM=android-34
 ARG ANDROID_BUILD_TOOLS=34.0.0
