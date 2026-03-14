@@ -32,9 +32,6 @@ ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/
 ARG AIR_VERSION=51.0.1.3
 ARG AIR_SDK_BASE_URL=https://airsdk.harman.com/api/versions/${AIR_VERSION}/sdks
 
-# 7-Zip Extra (contains 7zSD.sfx — Windows SFX stub for portable exe)
-ARG SEVENZIP_EXTRA_URL=https://www.7-zip.org/a/7z2409-extra.7z
-
 SHELL ["/bin/bash", "-c"]
 RUN echo "Downloading tools in parallel..." && \
     curl -fSL -o /tmp/air_sdk.zip       "${AIR_SDK_BASE_URL}/AIRSDK_Linux.zip?license=accepted" & \
@@ -43,7 +40,6 @@ RUN echo "Downloading tools in parallel..." && \
     curl -fSL -o /tmp/bundletool.jar \
         "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar" & \
     curl -fSL -o /tmp/appimagetool.AppImage "${APPIMAGETOOL_URL}" & \
-    curl -fSL -o /tmp/7z-extra.7z "${SEVENZIP_EXTRA_URL}" & \
     wait && \
     # Install AIR SDK (Linux — compiler toolchain + Linux runtime)
     mkdir -p /opt/air_sdk && \
@@ -52,11 +48,6 @@ RUN echo "Downloading tools in parallel..." && \
     # Install AIR SDK Windows runtime (for cross-packaging Windows bundles)
     mkdir -p /opt/air_win_sdk && \
     unzip -o -q /tmp/air_win_sdk.zip 'runtimes/air/win/*' -d /opt/air_win_sdk && \
-    # Extract 7z SFX stub (need p7zip to unpack .7z)
-    apt-get update -qq && apt-get install -y --no-install-recommends p7zip-full && \
-    mkdir -p /opt/7z-sfx && \
-    7z e -o/opt/7z-sfx /tmp/7z-extra.7z 7zSD.sfx && \
-    apt-get purge -y p7zip-full && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* && \
     # Install Android cmdline-tools
     mkdir -p /opt/android-sdk/cmdline-tools && \
     unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools && \
@@ -69,7 +60,7 @@ RUN echo "Downloading tools in parallel..." && \
     cd /tmp && ./appimagetool.AppImage --appimage-extract && \
     mv /tmp/squashfs-root /opt/appimagetool && \
     # Cleanup
-    rm -f /tmp/air_sdk.zip /tmp/air_win_sdk.zip /tmp/7z-extra.7z /tmp/cmdline-tools.zip /tmp/appimagetool.AppImage
+    rm -f /tmp/air_sdk.zip /tmp/air_win_sdk.zip /tmp/cmdline-tools.zip /tmp/appimagetool.AppImage
 
 # ============================================================
 # Stage 2: Final image (zero apt-get!)
@@ -94,10 +85,12 @@ COPY --from=builder /tmp/rabcdasm/rabcasm     /usr/local/bin/
 COPY --from=builder /tmp/rabcdasm/abcreplace  /usr/local/bin/
 COPY --from=builder /opt/air_sdk              /opt/air_sdk
 COPY --from=builder /opt/air_win_sdk          /opt/air_win_sdk
-COPY --from=builder /opt/7z-sfx               /opt/7z-sfx
 COPY --from=builder /opt/android-sdk          /opt/android-sdk
 COPY --from=builder /opt/bundletool           /opt/bundletool
 COPY --from=builder /opt/appimagetool         /opt/appimagetool
+
+# 7-Zip SFX stub for Windows portable exe (committed to repo)
+COPY windows/7zSD.sfx                         /opt/7z-sfx/7zSD.sfx
 
 # -----------------------------------------------------------
 # Linux desktop runtime dependencies (for AIR runtime + ldd lib bundling)

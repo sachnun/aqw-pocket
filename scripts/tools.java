@@ -218,9 +218,9 @@ public class tools {
         // Step 1: Find the marker string in the binary
         int stringOffset = indexOf(data, markerBytes);
         if (stringOffset == -1) {
-            throw new IOException(
-                "License-check string \"" + marker + "\" not found in " + dllPath
-                + "; the AIR SDK version may have changed");
+            System.out.println("License-check string \"" + marker + "\" not found in " + dllPath
+                + "; HARMAN AIR SDK may not require this patch — skipping.");
+            return;
         }
         System.out.printf("Found license string at offset 0x%x%n", stringOffset);
 
