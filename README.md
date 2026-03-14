@@ -28,9 +28,10 @@ Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](http
 
 | Target | Description |
 |---|---|
-| `make build` | Build universal APK + Linux AppImage (default) |
+| `make build` | Build all platforms (default) |
 | `make build-universal` | Full pipeline: AAB -> universal APK |
 | `make build-linux` | Build Linux AppImage |
+| `make build-windows` | Build Windows x64 portable EXE |
 | `make build-armv7` | Build armv7 APK only |
 | `make build-armv8` | Build armv8 APK only |
 | `make build-aab` | Build AAB |
