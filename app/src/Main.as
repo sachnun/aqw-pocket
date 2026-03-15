@@ -22,6 +22,7 @@ package {
 	import flash.text.TextFormatAlign;
 	import flash.ui.Keyboard;
 	import flash.utils.ByteArray;
+	import flash.system.Capabilities;
 	import flash.utils.getTimer;
 
 	import core.AvatarMC;
@@ -76,8 +77,16 @@ package {
 			const permissionRequested:Boolean = foregroundService.requestNotificationPermission();
 
 			NativeApplication.nativeApplication.systemIdleMode = SystemIdleMode.KEEP_AWAKE;
-			NativeApplication.nativeApplication.autoExit = false;
-			NativeApplication.nativeApplication.executeInBackground = true;
+
+			// Only keep the app alive in the background on Android (for foreground service).
+			// On desktop (Windows/Linux), autoExit must remain true so closing the window
+			// terminates the process instead of leaving it running in the background.
+			const isAndroid:Boolean = Capabilities.version.substr(0, 3) == "AND";
+			if (isAndroid) {
+				NativeApplication.nativeApplication.autoExit = false;
+				NativeApplication.nativeApplication.executeInBackground = true;
+			}
+
 			NativeApplication.nativeApplication.addEventListener(Event.ACTIVATE, onAppActivate);
 			NativeApplication.nativeApplication.addEventListener(Event.DEACTIVATE, onAppDeactivate);
 			NativeApplication.nativeApplication.addEventListener(Event.EXITING, onAppExiting);
