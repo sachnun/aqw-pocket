@@ -32,10 +32,10 @@ BUNDLE="build/AQWPocket"
 
 # ── Step 1: Patch Game.swf ─────────────────────────────────
 if [ "$SKIP_PATCH" != "1" ]; then
-  echo "[1/6] Patching latest Game.swf..."
+  echo "[1/7] Patching latest Game.swf..."
   java scripts/patch.java
 else
-  echo "[1/6] Skip patch (--skip-patch)"
+  echo "[1/7] Skip patch (--skip-patch)"
 fi
 test -f assets/Game.swf || { echo "Missing assets/Game.swf"; exit 1; }
 
@@ -76,8 +76,8 @@ done
 mkdir -p "$BUNDLE/gamefiles"
 cp app/gamefiles/Game.swf "$BUNDLE/gamefiles/Game.swf"
 
-# ── Step 5: Patch AIR license check ───────────────────────
-echo "[5/6] Patching AIR license check..."
+# ── Step 5: Patch AIR runtime ──────────────────────────────
+echo "[5/7] Patching AIR runtime..."
 WIN_DLL="$BUNDLE/Adobe AIR/Versions/1.0/Adobe AIR.dll"
 if [ -f "$WIN_DLL" ]; then
   java scripts/tools.java patch-air-license "$WIN_DLL"
@@ -102,7 +102,7 @@ else
 fi
 
 # ── Step 6: Create portable exe (7z SFX) ──────────────────
-echo "[6/6] Creating portable exe..."
+echo "[6/7] Creating portable exe..."
 
 # Create 7z archive of the bundle contents
 7z a -mx=5 -r build/_bundle.7z "./$BUNDLE/*" > /dev/null
@@ -114,7 +114,7 @@ Title="AQW Pocket"
 ExtractDialogText="Extracting AQW Pocket..."
 ExtractPathText="Extract to:"
 ExtractPathDefault="AQWPocket"
-RunProgram="AQWPocket\\AQWPocket.exe"
+RunProgram="AQWPocket.exe"
 ;!@InstallEnd@!
 SFXEOF
 
