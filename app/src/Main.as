@@ -29,8 +29,8 @@ package {
 	import core.Game;
 	import core.World;
 
-	import data.Release;
-	import data.Version;
+	import model.Release;
+	import model.Version;
 
 	import ui.UpdateBanner;
 	import input.GamePad;
