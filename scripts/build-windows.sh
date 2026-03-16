@@ -61,6 +61,7 @@ amxmlc -output app/Loader.swf app/src/Main.as
 # .air package (cross-platform) and extract these artifacts.
 # Uses a persistent PKCS12 certificate in CI, with a local dev fallback.
 echo "[4/7] Signing application content..."
+mkdir -p build
 
 # Auto-generate dev AIR certificate if missing
 if [ ! -f "$KEYSTORE_PATH" ]; then
@@ -80,7 +81,7 @@ adt -package \
 
 # ── Step 5: Assemble Windows bundle ───────────────────────
 echo "[5/7] Assembling Windows bundle..."
-mkdir -p build && rm -rf "$BUNDLE"
+rm -rf "$BUNDLE"
 
 # Extract signed content (includes META-INF with signatures + hash)
 mkdir -p "$BUNDLE"
