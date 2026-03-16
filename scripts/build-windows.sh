@@ -8,7 +8,7 @@
 # Usage: scripts/build-windows.sh [OPTIONS]
 #
 # Options:
-#   --output NAME    Output exe filename (default: AQWPocket-windows-x64.exe)
+#   --output NAME    Output exe filename (default: AQWPocket-windows.exe)
 #   --skip-patch     Skip Game.swf patching
 #
 # Signing (via environment, shared with CI release builds):
@@ -33,7 +33,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-EXE_NAME="${OUTPUT:-AQWPocket-windows-x64.exe}"
+EXE_NAME="${OUTPUT:-AQWPocket-windows.exe}"
 WIN_RUNTIME="${AIR_WIN_RUNTIME:-/opt/air_win_sdk/runtimes/air/win}"
 SFX="${SFX_MODULE:-/opt/7z-sfx/7zSD.sfx}"
 BUNDLE="build/AQWPocket"

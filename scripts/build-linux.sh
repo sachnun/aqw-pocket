@@ -5,7 +5,7 @@
 # Usage: scripts/build-linux.sh [OPTIONS]
 #
 # Options:
-#   --output NAME    Output AppImage filename (default: AQWPocket-x86_64.AppImage)
+#   --output NAME    Output AppImage filename (default: AQWPocket-linux.AppImage)
 #   --skip-patch     Skip Game.swf patching
 #
 # Signing (via environment, shared with CI release builds):
@@ -30,7 +30,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-APPIMAGE_NAME="${OUTPUT:-AQWPocket-x86_64.AppImage}"
+APPIMAGE_NAME="${OUTPUT:-AQWPocket-linux.AppImage}"
 RUNTIME="${AIR_HOME:-/opt/air_sdk}/runtimes/air/linux-x64"
 BUNDLE="build/AQWPocket-linux"
 

@@ -91,7 +91,7 @@ jobs:
       - name: Set output names
         id: meta
         run: |
-          APK_NAME="AQWPocket-universal-${{ needs.prepare.outputs.tag_version }}.apk"
+          APK_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-android.apk"
           ARTIFACT_NAME="universal-apk-${{ needs.prepare.outputs.tag_version }}"
           echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
@@ -164,7 +164,7 @@ jobs:
       - name: Set output names
         id: meta
         run: |
-          APPIMAGE_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-x86_64.AppImage"
+          APPIMAGE_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-linux.AppImage"
           ARTIFACT_NAME="linux-appimage-${{ needs.prepare.outputs.tag_version }}"
           echo "appimage_name=${APPIMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
@@ -249,7 +249,7 @@ jobs:
       - name: Set output names
         id: meta
         run: |
-          EXE_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-windows-x64.exe"
+          EXE_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-windows.exe"
           ARTIFACT_NAME="windows-exe-${{ needs.prepare.outputs.tag_version }}"
           echo "exe_name=${EXE_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
