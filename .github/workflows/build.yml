@@ -174,6 +174,24 @@ jobs:
           docker pull ghcr.io/sachnun/aqw-pocket:build
           docker tag ghcr.io/sachnun/aqw-pocket:build ${{ env.DOCKER_IMAGE }}
 
+      - name: Restore AIR signing keystore
+        env:
+          AIR_KEYSTORE_BASE64: ${{ secrets.AIR_KEYSTORE_BASE64 }}
+          AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$AIR_KEYSTORE_BASE64" ] || [ -z "$AIR_KEYSTORE_PASSWORD" ]; then
+            if [ "${{ needs.prepare.outputs.publish_release }}" = "true" ]; then
+              echo "Missing AIR signing secrets."
+              exit 1
+            fi
+
+            echo "AIR signing secrets not set; using auto-generated dev certificate."
+            exit 0
+          fi
+
+          mkdir -p .signing
+          printf '%s' "$AIR_KEYSTORE_BASE64" | base64 -d > .signing/release.p12
+
       - name: Inject version into source files
         run: |
           sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
@@ -181,14 +199,32 @@ jobs:
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
 
       - name: Build Linux AppImage
+        env:
+          AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
         run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            --privileged \
-            "$DOCKER_IMAGE" \
-            scripts/build-linux.sh \
-              --output "${{ steps.meta.outputs.appimage_name }}"
+          if [ -f .signing/release.p12 ] && [ -n "$AIR_KEYSTORE_PASSWORD" ]; then
+            docker run --rm \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              --privileged \
+              -e KEYSTORE_PATH=/workspace/.signing/release.p12 \
+              -e KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD" \
+              "$DOCKER_IMAGE" \
+              scripts/build-linux.sh \
+                --output "${{ steps.meta.outputs.appimage_name }}"
+          else
+            docker run --rm \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              --privileged \
+              "$DOCKER_IMAGE" \
+              scripts/build-linux.sh \
+                --output "${{ steps.meta.outputs.appimage_name }}"
+          fi
+
+      - name: Clean signing keystore
+        if: always()
+        run: rm -rf .signing
 
       - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@v7
@@ -223,6 +259,24 @@ jobs:
           docker pull ghcr.io/sachnun/aqw-pocket:build
           docker tag ghcr.io/sachnun/aqw-pocket:build ${{ env.DOCKER_IMAGE }}
 
+      - name: Restore AIR signing keystore
+        env:
+          AIR_KEYSTORE_BASE64: ${{ secrets.AIR_KEYSTORE_BASE64 }}
+          AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$AIR_KEYSTORE_BASE64" ] || [ -z "$AIR_KEYSTORE_PASSWORD" ]; then
+            if [ "${{ needs.prepare.outputs.publish_release }}" = "true" ]; then
+              echo "Missing AIR signing secrets."
+              exit 1
+            fi
+
+            echo "AIR signing secrets not set; using auto-generated dev certificate."
+            exit 0
+          fi
+
+          mkdir -p .signing
+          printf '%s' "$AIR_KEYSTORE_BASE64" | base64 -d > .signing/release.p12
+
       - name: Inject version into source files
         run: |
           sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
@@ -230,13 +284,30 @@ jobs:
           sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-windows.xml
 
       - name: Build Windows portable exe
+        env:
+          AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
         run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            "$DOCKER_IMAGE" \
-            scripts/build-windows.sh \
-              --output "${{ steps.meta.outputs.exe_name }}"
+          if [ -f .signing/release.p12 ] && [ -n "$AIR_KEYSTORE_PASSWORD" ]; then
+            docker run --rm \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              -e KEYSTORE_PATH=/workspace/.signing/release.p12 \
+              -e KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD" \
+              "$DOCKER_IMAGE" \
+              scripts/build-windows.sh \
+                --output "${{ steps.meta.outputs.exe_name }}"
+          else
+            docker run --rm \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              "$DOCKER_IMAGE" \
+              scripts/build-windows.sh \
+                --output "${{ steps.meta.outputs.exe_name }}"
+          fi
+
+      - name: Clean signing keystore
+        if: always()
+        run: rm -rf .signing
 
       - name: Upload Windows exe artifact
         uses: actions/upload-artifact@v7

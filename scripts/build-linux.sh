@@ -7,8 +7,16 @@
 # Options:
 #   --output NAME    Output AppImage filename (default: AQWPocket-x86_64.AppImage)
 #   --skip-patch     Skip Game.swf patching
+#
+# Signing (via environment, shared with CI release builds):
+#   KEYSTORE_PATH / KEYSTORE_FILE   (default: .signing/dev.p12, auto-created)
+#   KEYSTORE_PASS / KEYSTORE_PASSWORD (default: devpass)
 
 set -eu
+
+# ── Configuration (via environment with defaults) ──────────
+KEYSTORE_PATH="${KEYSTORE_PATH:-${KEYSTORE_FILE:-.signing/dev.p12}}"
+KEYSTORE_PASS="${KEYSTORE_PASS:-${KEYSTORE_PASSWORD:-devpass}}"
 
 # ── Parse arguments ────────────────────────────────────────
 OUTPUT=""
@@ -47,11 +55,20 @@ amxmlc -output app/Loader.swf app/src/Main.as
 # Captive runtime entry points require META-INF/signatures.xml and
 # META-INF/AIR/hash to load the application. We create a signed
 # .air package (cross-platform) and extract these artifacts.
+# Uses a persistent PKCS12 certificate in CI, with a local dev fallback.
 echo "[4/6] Signing application content..."
-rm -f build/_cert.p12 build/_signed.air
-adt -certificate -cn AQWPocket 2048-RSA build/_cert.p12 password123
+
+# Auto-generate dev AIR certificate if missing
+if [ ! -f "$KEYSTORE_PATH" ]; then
+  echo "[keystore] Creating dev AIR certificate at $KEYSTORE_PATH..."
+  mkdir -p "$(dirname "$KEYSTORE_PATH")"
+  adt -certificate -cn "AQW Pocket Dev" -ou Dev -o Community 2048-RSA \
+    "$KEYSTORE_PATH" "$KEYSTORE_PASS"
+fi
+
+rm -f build/_signed.air
 adt -package \
-  -storetype pkcs12 -keystore build/_cert.p12 -storepass password123 \
+  -storetype pkcs12 -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" \
   -target air \
   build/_signed.air \
   app/app-linux.xml \
@@ -92,5 +109,5 @@ echo "Bundled $(ls build/AQWPocket.AppDir/lib/ | wc -l) shared libraries"
 ARCH=x86_64 "$APPIMAGETOOL" build/AQWPocket.AppDir "build/$APPIMAGE_NAME"
 
 # Cleanup
-rm -rf build/AQWPocket-linux build/AQWPocket.AppDir build/_cert.p12 build/_signed.air
+rm -rf build/AQWPocket-linux build/AQWPocket.AppDir build/_signed.air
 echo "Done. AppImage: build/$APPIMAGE_NAME"
