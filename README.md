@@ -21,13 +21,11 @@ Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](http
 
 | Target | Description |
 |---|---|
-| `make build` | Build universal APK + desktop builds |
-| `make build-android` | Build Android output (default: universal APK) |
-| `make build-linux` | Build Linux AppImage |
-| `make build-windows` | Build Windows x64 portable EXE |
-| `make clean` | Remove all build artifacts |
-
-For Android variants, use `ANDROID_TARGET=universal|aab|armv7|armv8`, for example `make build-android ANDROID_TARGET=aab`.
+| `make build` | Build all primary targets |
+| `make build-android` | Build Android app |
+| `make build-linux` | Build Linux app |
+| `make build-windows` | Build Windows app |
+| `make clean` | Remove build artifacts |
 
 Output artifacts will be in `build/`.
 
