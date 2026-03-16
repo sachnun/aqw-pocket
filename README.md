@@ -21,14 +21,13 @@ Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](http
 
 | Target | Description |
 |---|---|
-| `make build` | Build all platforms (default) |
-| `make build-universal` | Full pipeline: AAB -> universal APK |
+| `make build` | Build universal APK + desktop builds |
+| `make build-android` | Build Android output (default: universal APK) |
 | `make build-linux` | Build Linux AppImage |
 | `make build-windows` | Build Windows x64 portable EXE |
-| `make build-armv7` | Build armv7 APK only |
-| `make build-armv8` | Build armv8 APK only |
-| `make build-aab` | Build AAB |
 | `make clean` | Remove all build artifacts |
+
+For Android variants, use `ANDROID_TARGET=universal|aab|armv7|armv8`, for example `make build-android ANDROID_TARGET=aab`.
 
 Output artifacts will be in `build/`.
 

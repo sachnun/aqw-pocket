@@ -1,30 +1,28 @@
-DOCKER     := docker compose run --rm build
-SKIP_PATCH ?= 0
-SKIP_ANE   ?= 0
+DOCKER         := docker compose run --rm build
+SKIP_PATCH     ?= 0
+SKIP_ANE       ?= 0
+ANDROID_TARGET ?= universal
 
 _PATCH_FLAG = $(if $(filter 1,$(SKIP_PATCH)),--skip-patch)
 _ANE_FLAG   = $(if $(filter 1,$(SKIP_ANE)),--skip-ane)
 
-.PHONY: build build-armv7 build-armv8 build-aab build-universal \
-        build-linux build-windows clean help
+.PHONY: build build-android build-linux build-windows clean help
 
 # ── Default: APK + Desktop ─────────────────────────────────
 
-build: build-universal build-linux build-windows
+build: build-android build-linux build-windows
 
 # ── Android builds ─────────────────────────────────────────
 
-build-armv7:
-	$(DOCKER) scripts/build-android.sh --target apk-armv7 $(_PATCH_FLAG) $(_ANE_FLAG)
-
-build-armv8:
-	$(DOCKER) scripts/build-android.sh --target apk-armv8 $(_PATCH_FLAG) $(_ANE_FLAG)
-
-build-aab:
-	$(DOCKER) scripts/build-android.sh --target aab $(_PATCH_FLAG) $(_ANE_FLAG)
-
-build-universal:
-	$(DOCKER) scripts/build-android.sh --target universal $(_PATCH_FLAG) $(_ANE_FLAG)
+build-android:
+	@case "$(ANDROID_TARGET)" in \
+		universal) target=universal ;; \
+		aab) target=aab ;; \
+		armv7) target=apk-armv7 ;; \
+		armv8) target=apk-armv8 ;; \
+		*) echo "Invalid ANDROID_TARGET='$(ANDROID_TARGET)'. Use one of: universal, aab, armv7, armv8" >&2; exit 1 ;; \
+	esac; \
+	$(DOCKER) scripts/build-android.sh --target $$target $(_PATCH_FLAG) $(_ANE_FLAG)
 
 # ── Linux AppImage ──────────────────────────────────────────
 
@@ -48,18 +46,17 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  build            Build universal APK + Linux AppImage + Windows bundle"
-	@echo "  build-armv7      Build armv7 APK only"
-	@echo "  build-armv8      Build armv8 APK only"
-	@echo "  build-aab        Build AAB"
-	@echo "  build-universal  Full pipeline: AAB -> normalize -> universal APK"
-	@echo "  build-linux      Build Linux AppImage"
-	@echo "  build-windows    Build Windows x64 bundle (zip)"
+	@echo "  build          Build universal APK + Linux AppImage + Windows bundle"
+	@echo "  build-android  Build Android output (default: universal APK)"
+	@echo "  build-linux    Build Linux AppImage"
+	@echo "  build-windows  Build Windows x64 bundle (zip)"
 	@echo ""
 	@echo "Options (via environment or make args):"
-	@echo "  SKIP_PATCH=1     Skip Game.swf patching step"
-	@echo "  SKIP_ANE=1       Skip foreground ANE rebuild (Android only)"
+	@echo "  ANDROID_TARGET  Android variant for build-android (default: universal)"
+	@echo "                  Values: universal, aab, armv7, armv8"
+	@echo "  SKIP_PATCH=1    Skip Game.swf patching step"
+	@echo "  SKIP_ANE=1      Skip foreground ANE rebuild (Android only)"
 	@echo ""
 	@echo "Utility targets:"
-	@echo "  clean            Remove all build artifacts"
-	@echo "  help             Show this help message"
+	@echo "  clean          Remove all build artifacts"
+	@echo "  help           Show this help message"
