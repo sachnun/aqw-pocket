@@ -40,17 +40,34 @@ fi
 test -f assets/Game.swf || { echo "Missing assets/Game.swf"; exit 1; }
 
 # ── Step 2: Prepare gamefiles ──────────────────────────────
-echo "[2/6] Preparing loader gamefiles..."
+echo "[2/7] Preparing loader gamefiles..."
 mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
 
 # ── Step 3: Compile Loader.swf ─────────────────────────────
-echo "[3/6] Compiling Loader.swf (windows)..."
+echo "[3/7] Compiling Loader.swf (windows)..."
 amxmlc -output app/Loader.swf app/src/Main.as
 
-# ── Step 4: Assemble Windows bundle ───────────────────────
-echo "[4/6] Assembling Windows bundle..."
+# ── Step 4: Sign content with adt ─────────────────────────
+# CaptiveAppEntry.exe requires META-INF/signatures.xml and
+# META-INF/AIR/hash to load the application. We create a signed
+# .air package (cross-platform) and extract these artifacts.
+echo "[4/7] Signing application content..."
+rm -f build/_cert.p12 build/_signed.air
+adt -certificate -cn AQWPocket 2048-RSA build/_cert.p12 password123
+adt -package \
+  -storetype pkcs12 -keystore build/_cert.p12 -storepass password123 \
+  -target air \
+  build/_signed.air \
+  app/app-windows.xml \
+  -C app Loader.swf gamefiles icons
+
+# ── Step 5: Assemble Windows bundle ───────────────────────
+echo "[5/7] Assembling Windows bundle..."
 mkdir -p build && rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/META-INF/AIR"
+
+# Extract signed content (includes META-INF with signatures + hash)
+mkdir -p "$BUNDLE"
+cd "$BUNDLE" && unzip -q ../../build/_signed.air && cd ../..
 
 # Copy Windows AIR runtime
 cp -a "$WIN_RUNTIME/Adobe AIR" "$BUNDLE/"
@@ -58,26 +75,8 @@ cp -a "$WIN_RUNTIME/Adobe AIR" "$BUNDLE/"
 # The captive runtime entry point for Windows
 cp "$WIN_RUNTIME/Adobe AIR/Versions/1.0/Resources/CaptiveAppEntry.exe" "$BUNDLE/AQWPocket.exe"
 
-# Application descriptor and license
-cp app/app-windows.xml "$BUNDLE/META-INF/AIR/application.xml"
-cp windows/license.txt "$BUNDLE/META-INF/AIR/license.txt"
-echo -n "application/vnd.adobe.air-application-installer-package+zip" > "$BUNDLE/mimetype"
-
-# Loader SWF
-cp app/Loader.swf "$BUNDLE/Loader.swf"
-
-# Icons
-mkdir -p "$BUNDLE/icons"
-for sz in 36 48 72 96 144 192; do
-  cp "app/icons/android-icon-${sz}x${sz}.png" "$BUNDLE/icons/android-icon-${sz}x${sz}.png"
-done
-
-# Game files
-mkdir -p "$BUNDLE/gamefiles"
-cp app/gamefiles/Game.swf "$BUNDLE/gamefiles/Game.swf"
-
-# ── Step 5: Patch AIR runtime ──────────────────────────────
-echo "[5/7] Patching AIR runtime..."
+# ── Step 6: Patch AIR runtime ──────────────────────────────
+echo "[6/7] Patching AIR runtime..."
 WIN_DLL="$BUNDLE/Adobe AIR/Versions/1.0/Adobe AIR.dll"
 if [ -f "$WIN_DLL" ]; then
   java scripts/tools.java patch-air-license "$WIN_DLL"
@@ -101,28 +100,27 @@ else
   fi
 fi
 
-# ── Step 6: Create portable exe (7z SFX) ──────────────────
-echo "[6/7] Creating portable exe..."
+# ── Step 7: Create portable exe (7z SFX) ──────────────────
+echo "[7/7] Creating portable exe..."
 
 # Create 7z archive of the bundle contents
 7z a -mx=5 -r build/_bundle.7z "./$BUNDLE/*" > /dev/null
 
 # SFX config: auto-extract to subfolder and run AQWPocket.exe
-cat > build/_sfx_config.txt << 'SFXEOF'
-;!@Install@!UTF-8!
-Title="AQW Pocket"
-ExtractDialogText="Extracting AQW Pocket..."
-ExtractPathText="Extract to:"
-ExtractPathDefault="AQWPocket"
-RunProgram="AQWPocket.exe"
-;!@InstallEnd@!
-SFXEOF
+# 7zSD.sfx requires Windows CRLF line endings to parse the config
+printf ';!@Install@!UTF-8!\r\n' > build/_sfx_config.txt
+printf 'Title="AQW Pocket"\r\n' >> build/_sfx_config.txt
+printf 'ExtractDialogText="Extracting AQW Pocket..."\r\n' >> build/_sfx_config.txt
+printf 'ExtractPathText="Extract to:"\r\n' >> build/_sfx_config.txt
+printf 'ExtractPathDefault="AQWPocket"\r\n' >> build/_sfx_config.txt
+printf 'RunProgram="AQWPocket.exe"\r\n' >> build/_sfx_config.txt
+printf ';!@InstallEnd@!\r\n' >> build/_sfx_config.txt
 
 # Concatenate: SFX stub + config + 7z archive = portable exe
 cat "$SFX" build/_sfx_config.txt build/_bundle.7z > "build/$EXE_NAME"
 
 # Cleanup temp files
-rm -f build/_bundle.7z build/_sfx_config.txt
+rm -f build/_bundle.7z build/_sfx_config.txt build/_cert.p12 build/_signed.air
 rm -rf "$BUNDLE"
 
 echo "Done. Portable exe: build/$EXE_NAME"

@@ -28,43 +28,54 @@ BUNDLE="build/AQWPocket-linux"
 
 # ── Step 1: Patch Game.swf ─────────────────────────────────
 if [ "$SKIP_PATCH" != "1" ]; then
-  echo "[1/5] Patching latest Game.swf..."
+  echo "[1/6] Patching latest Game.swf..."
   java scripts/patch.java
 else
-  echo "[1/5] Skip patch (--skip-patch)"
+  echo "[1/6] Skip patch (--skip-patch)"
 fi
 test -f assets/Game.swf || { echo "Missing assets/Game.swf"; exit 1; }
 
 # ── Step 2: Prepare gamefiles ──────────────────────────────
-echo "[2/5] Preparing loader gamefiles..."
+echo "[2/6] Preparing loader gamefiles..."
 mkdir -p app/gamefiles && cp assets/Game.swf app/gamefiles/Game.swf
 
 # ── Step 3: Compile Loader.swf ─────────────────────────────
-echo "[3/5] Compiling Loader.swf (linux)..."
+echo "[3/6] Compiling Loader.swf (linux)..."
 amxmlc -output app/Loader.swf app/src/Main.as
 
-# ── Step 4: Assemble AIR bundle ────────────────────────────
-echo "[4/5] Assembling AIR bundle..."
+# ── Step 4: Sign content with adt ─────────────────────────
+# Captive runtime entry points require META-INF/signatures.xml and
+# META-INF/AIR/hash to load the application. We create a signed
+# .air package (cross-platform) and extract these artifacts.
+echo "[4/6] Signing application content..."
+rm -f build/_cert.p12 build/_signed.air
+adt -certificate -cn AQWPocket 2048-RSA build/_cert.p12 password123
+adt -package \
+  -storetype pkcs12 -keystore build/_cert.p12 -storepass password123 \
+  -target air \
+  build/_signed.air \
+  app/app-linux.xml \
+  -C app Loader.swf gamefiles icons
+
+# ── Step 5: Assemble AIR bundle ────────────────────────────
+echo "[5/6] Assembling AIR bundle..."
 mkdir -p build && rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/META-INF/AIR"
+
+# Extract signed content (includes META-INF with signatures + hash)
+mkdir -p "$BUNDLE"
+cd "$BUNDLE" && unzip -q ../../build/_signed.air && cd ../..
+
+# Copy Linux AIR runtime
 cp -a "$RUNTIME/Adobe AIR" "$BUNDLE/"
 cp "$RUNTIME/Adobe AIR/Versions/1.0/Resources/captiveappentry" "$BUNDLE/AQWPocket"
 chmod +x "$BUNDLE/AQWPocket"
-cp app/Loader.swf "$BUNDLE/Loader.swf"
-cp app/app-linux.xml "$BUNDLE/META-INF/AIR/application.xml"
-cp linux/license.txt "$BUNDLE/META-INF/AIR/license.txt"
-echo -n "application/vnd.adobe.air-application-installer-package+zip" > "$BUNDLE/mimetype"
-mkdir -p "$BUNDLE/icons"
-for sz in 36 48 72 96 144 192; do
-  cp "app/icons/android-icon-${sz}x${sz}.png" "$BUNDLE/icons/android-icon-${sz}x${sz}.png"
-done
-mkdir -p "$BUNDLE/gamefiles"
-cp app/gamefiles/Game.swf "$BUNDLE/gamefiles/Game.swf"
+
+# Patch AIR runtime license
 java scripts/tools.java patch-air-license \
   "$BUNDLE/Adobe AIR/Versions/1.0/libCore.so"
 
-# ── Step 5: Create AppImage ────────────────────────────────
-echo "[5/5] Creating AppImage..."
+# ── Step 6: Create AppImage ────────────────────────────────
+echo "[6/6] Creating AppImage..."
 rm -rf build/AQWPocket.AppDir
 mkdir -p build/AQWPocket.AppDir/lib
 cp -a "$BUNDLE" build/AQWPocket.AppDir/AQWPocket-linux
@@ -79,5 +90,7 @@ ldd "$CORE_SO" | grep "=> /" | grep -vE "$EXCLUDE" | awk '{print $3}' | sort -u 
 done
 echo "Bundled $(ls build/AQWPocket.AppDir/lib/ | wc -l) shared libraries"
 ARCH=x86_64 "$APPIMAGETOOL" build/AQWPocket.AppDir "build/$APPIMAGE_NAME"
-rm -rf build/AQWPocket-linux build/AQWPocket.AppDir
+
+# Cleanup
+rm -rf build/AQWPocket-linux build/AQWPocket.AppDir build/_cert.p12 build/_signed.air
 echo "Done. AppImage: build/$APPIMAGE_NAME"
