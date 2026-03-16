@@ -31,6 +31,8 @@ ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/
 # AIR SDK version — single ARG controls both Linux and Windows downloads
 ARG AIR_VERSION=51.2.2.6
 ARG AIR_SDK_BASE_URL=https://airsdk.harman.com/api/versions/${AIR_VERSION}/sdks
+# Cache bust: any change to Dockerfile (including AIR_VERSION) invalidates from here
+ARG CACHE_BUST=default
 
 SHELL ["/bin/bash", "-c"]
 RUN echo "Downloading tools in parallel..." && \
@@ -70,6 +72,10 @@ FROM eclipse-temurin:17-jdk-jammy
 
 LABEL org.opencontainers.image.description="AQW Pocket build environment"
 LABEL org.opencontainers.image.source="https://github.com/sachnun/aqw-pocket"
+
+# Cache bust: must appear in stage 2 as well to invalidate COPY --from=builder layers
+# (buildx GHA cache treats each stage's layers independently)
+ARG CACHE_BUST=default
 
 ARG ANDROID_PLATFORM=android-34
 ARG ANDROID_BUILD_TOOLS=34.0.0
