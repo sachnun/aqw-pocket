@@ -125,7 +125,7 @@ jobs:
             const apkArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.apk'));
             const linuxArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.AppImage'));
             const windowsArtifact = artifactData.artifacts.find((item) => item.name.endsWith('.exe'));
-            const buildJob = jobs.jobs.find((job) => job.name === 'Build Universal Preview APK');
+            const buildJob = jobs.jobs.find((job) => job.name === 'Build Android Preview APK');
             const linuxJob = jobs.jobs.find((job) => job.name === 'Build Linux Preview AppImage');
             const windowsJob = jobs.jobs.find((job) => job.name === 'Build Windows Preview Exe');
             const shortSha = run.head_sha.slice(0, 7);

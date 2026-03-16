@@ -1,6 +1,15 @@
 services:
   build:
-    image: ghcr.io/sachnun/aqw-pocket:build
+    image: ${BUILD_IMAGE:-ghcr.io/sachnun/aqw-pocket:build}
     volumes:
       - .:/workspace
     working_dir: /workspace
+    environment:
+      - KEYSTORE_PATH
+      - KEYSTORE_FILE
+      - KEY_ALIAS
+      - KEYSTORE_ALIAS
+      - KEYSTORE_PASS
+      - KEYSTORE_PASSWORD
+      - KEY_PASS
+      - KEY_PASSWORD

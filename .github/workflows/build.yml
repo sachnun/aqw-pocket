@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOCKER_IMAGE: aqw-pocket-build
+  BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build
 
 jobs:
   prepare:
@@ -75,8 +75,8 @@ jobs:
           echo "publish_release=${PUBLISH_RELEASE}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
 
-  build_universal:
-    name: Build Universal APK
+  build_android:
+    name: Build Android APK
     runs-on: ubuntu-latest
     needs: prepare
     permissions:
@@ -92,56 +92,44 @@ jobs:
         id: meta
         run: |
           APK_NAME="AQWPocket-${{ needs.prepare.outputs.tag_version }}-android.apk"
-          ARTIFACT_NAME="universal-apk-${{ needs.prepare.outputs.tag_version }}"
+          ARTIFACT_NAME="android-apk-${{ needs.prepare.outputs.tag_version }}"
           echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Pull build image
-        run: |
-          docker pull ghcr.io/sachnun/aqw-pocket:build
-          docker tag ghcr.io/sachnun/aqw-pocket:build ${{ env.DOCKER_IMAGE }}
+        run: sh scripts/ci/pull-build-image.sh
 
       - name: Restore signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
-            echo "Missing Android signing secrets."
-            exit 1
-          fi
-
-          mkdir -p .signing
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > .signing/release.jks
+        run: sh scripts/ci/restore-android-keystore.sh
 
       - name: Inject version into source files
         run: |
-          sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
-          sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app.xml
-          sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app.xml
+          sh scripts/ci/inject-version.sh \
+            --manifest app/app.xml \
+            --app-version "${{ needs.prepare.outputs.app_version }}" \
+            --tag-version "${{ needs.prepare.outputs.tag_version }}"
 
-      - name: Build universal APK
+      - name: Build Android APK
         env:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            -e KEYSTORE_PATH=/workspace/.signing/release.jks \
-            -e KEY_ALIAS="$ANDROID_KEY_ALIAS" \
-            -e KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
-            -e KEY_PASS="$ANDROID_KEYSTORE_PASSWORD" \
-            "$DOCKER_IMAGE" \
-            scripts/build-android.sh --target universal \
-              --output "${{ steps.meta.outputs.apk_name }}"
+          make build-android \
+            ANDROID_OUTPUT="${{ steps.meta.outputs.apk_name }}" \
+            KEYSTORE_PATH=/workspace/.signing/release.jks \
+            KEY_ALIAS="$ANDROID_KEY_ALIAS" \
+            KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
+            KEY_PASS="$ANDROID_KEYSTORE_PASSWORD"
 
       - name: Clean signing keystore
         if: always()
-        run: rm -rf .signing
+        run: sh scripts/ci/cleanup-signing.sh
 
-      - name: Upload universal APK artifact
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.meta.outputs.artifact_name }}
@@ -170,61 +158,41 @@ jobs:
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Pull build image
-        run: |
-          docker pull ghcr.io/sachnun/aqw-pocket:build
-          docker tag ghcr.io/sachnun/aqw-pocket:build ${{ env.DOCKER_IMAGE }}
+        run: sh scripts/ci/pull-build-image.sh
 
       - name: Restore AIR signing keystore
         env:
           AIR_KEYSTORE_BASE64: ${{ secrets.AIR_KEYSTORE_BASE64 }}
           AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
-        run: |
-          if [ -z "$AIR_KEYSTORE_BASE64" ] || [ -z "$AIR_KEYSTORE_PASSWORD" ]; then
-            if [ "${{ needs.prepare.outputs.publish_release }}" = "true" ]; then
-              echo "Missing AIR signing secrets."
-              exit 1
-            fi
-
-            echo "AIR signing secrets not set; using auto-generated dev certificate."
-            exit 0
-          fi
-
-          mkdir -p .signing
-          printf '%s' "$AIR_KEYSTORE_BASE64" | base64 -d > .signing/release.p12
+          REQUIRE_SIGNING: ${{ needs.prepare.outputs.publish_release }}
+        run: sh scripts/ci/restore-air-keystore.sh
 
       - name: Inject version into source files
         run: |
-          sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
-          sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-linux.xml
-          sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-linux.xml
+          sh scripts/ci/inject-version.sh \
+            --manifest app/app-linux.xml \
+            --app-version "${{ needs.prepare.outputs.app_version }}" \
+            --tag-version "${{ needs.prepare.outputs.tag_version }}"
 
       - name: Build Linux AppImage
         env:
           AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
         run: |
           if [ -f .signing/release.p12 ] && [ -n "$AIR_KEYSTORE_PASSWORD" ]; then
-            docker run --rm \
-              -v "$PWD:/workspace" \
-              -w /workspace \
-              --privileged \
-              -e KEYSTORE_PATH=/workspace/.signing/release.p12 \
-              -e KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD" \
-              "$DOCKER_IMAGE" \
-              scripts/build-linux.sh \
-                --output "${{ steps.meta.outputs.appimage_name }}"
+            make build-linux \
+              DOCKER_RUN_ARGS=--privileged \
+              LINUX_OUTPUT="${{ steps.meta.outputs.appimage_name }}" \
+              KEYSTORE_PATH=/workspace/.signing/release.p12 \
+              KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD"
           else
-            docker run --rm \
-              -v "$PWD:/workspace" \
-              -w /workspace \
-              --privileged \
-              "$DOCKER_IMAGE" \
-              scripts/build-linux.sh \
-                --output "${{ steps.meta.outputs.appimage_name }}"
+            make build-linux \
+              DOCKER_RUN_ARGS=--privileged \
+              LINUX_OUTPUT="${{ steps.meta.outputs.appimage_name }}"
           fi
 
       - name: Clean signing keystore
         if: always()
-        run: rm -rf .signing
+        run: sh scripts/ci/cleanup-signing.sh
 
       - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@v7
@@ -255,59 +223,39 @@ jobs:
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Pull build image
-        run: |
-          docker pull ghcr.io/sachnun/aqw-pocket:build
-          docker tag ghcr.io/sachnun/aqw-pocket:build ${{ env.DOCKER_IMAGE }}
+        run: sh scripts/ci/pull-build-image.sh
 
       - name: Restore AIR signing keystore
         env:
           AIR_KEYSTORE_BASE64: ${{ secrets.AIR_KEYSTORE_BASE64 }}
           AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
-        run: |
-          if [ -z "$AIR_KEYSTORE_BASE64" ] || [ -z "$AIR_KEYSTORE_PASSWORD" ]; then
-            if [ "${{ needs.prepare.outputs.publish_release }}" = "true" ]; then
-              echo "Missing AIR signing secrets."
-              exit 1
-            fi
-
-            echo "AIR signing secrets not set; using auto-generated dev certificate."
-            exit 0
-          fi
-
-          mkdir -p .signing
-          printf '%s' "$AIR_KEYSTORE_BASE64" | base64 -d > .signing/release.p12
+          REQUIRE_SIGNING: ${{ needs.prepare.outputs.publish_release }}
+        run: sh scripts/ci/restore-air-keystore.sh
 
       - name: Inject version into source files
         run: |
-          sed -i "s/APP_VERSION:String = \".*\"/APP_VERSION:String = \"${{ needs.prepare.outputs.tag_version }}\"/" app/src/Config.as
-          sed -i "s|<versionNumber>.*</versionNumber>|<versionNumber>${{ needs.prepare.outputs.app_version }}</versionNumber>|" app/app-windows.xml
-          sed -i "s|<versionLabel>.*</versionLabel>|<versionLabel>${{ needs.prepare.outputs.tag_version }}</versionLabel>|" app/app-windows.xml
+          sh scripts/ci/inject-version.sh \
+            --manifest app/app-windows.xml \
+            --app-version "${{ needs.prepare.outputs.app_version }}" \
+            --tag-version "${{ needs.prepare.outputs.tag_version }}"
 
       - name: Build Windows portable exe
         env:
           AIR_KEYSTORE_PASSWORD: ${{ secrets.AIR_KEYSTORE_PASSWORD }}
         run: |
           if [ -f .signing/release.p12 ] && [ -n "$AIR_KEYSTORE_PASSWORD" ]; then
-            docker run --rm \
-              -v "$PWD:/workspace" \
-              -w /workspace \
-              -e KEYSTORE_PATH=/workspace/.signing/release.p12 \
-              -e KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD" \
-              "$DOCKER_IMAGE" \
-              scripts/build-windows.sh \
-                --output "${{ steps.meta.outputs.exe_name }}"
+            make build-windows \
+              WINDOWS_OUTPUT="${{ steps.meta.outputs.exe_name }}" \
+              KEYSTORE_PATH=/workspace/.signing/release.p12 \
+              KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD"
           else
-            docker run --rm \
-              -v "$PWD:/workspace" \
-              -w /workspace \
-              "$DOCKER_IMAGE" \
-              scripts/build-windows.sh \
-                --output "${{ steps.meta.outputs.exe_name }}"
+            make build-windows \
+              WINDOWS_OUTPUT="${{ steps.meta.outputs.exe_name }}"
           fi
 
       - name: Clean signing keystore
         if: always()
-        run: rm -rf .signing
+        run: sh scripts/ci/cleanup-signing.sh
 
       - name: Upload Windows exe artifact
         uses: actions/upload-artifact@v7
@@ -319,7 +267,7 @@ jobs:
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [prepare, build_universal, build_linux, build_windows]
+    needs: [prepare, build_android, build_linux, build_windows]
     if: needs.prepare.outputs.publish_release == 'true'
     permissions:
       contents: write
@@ -329,10 +277,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download APK artifact
+      - name: Download Android APK artifact
         uses: actions/download-artifact@v8
         with:
-          name: ${{ needs.build_universal.outputs.artifact_name }}
+          name: ${{ needs.build_android.outputs.artifact_name }}
           path: build
 
       - name: Download Linux AppImage artifact
@@ -364,7 +312,7 @@ jobs:
           gh release delete "${{ needs.prepare.outputs.tag_version }}" --yes 2>/dev/null || true
 
           gh release create "${{ needs.prepare.outputs.tag_version }}" \
-            "build/${{ needs.build_universal.outputs.apk_name }}" \
+            "build/${{ needs.build_android.outputs.apk_name }}" \
             "build/${{ needs.build_linux.outputs.appimage_name }}" \
             "build/${{ needs.build_windows.outputs.exe_name }}" \
             --title "${{ needs.prepare.outputs.tag_version }}" \
