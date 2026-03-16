@@ -29,7 +29,7 @@ ARG CMDLINE_TOOLS_URL=https://dl.google.com/android/repository/commandlinetools-
 ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
 
 # AIR SDK version — single ARG controls both Linux and Windows downloads
-ARG AIR_VERSION=51.0.1.3
+ARG AIR_VERSION=51.2.2.6
 ARG AIR_SDK_BASE_URL=https://airsdk.harman.com/api/versions/${AIR_VERSION}/sdks
 
 SHELL ["/bin/bash", "-c"]
