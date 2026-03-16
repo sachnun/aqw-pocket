@@ -27,6 +27,10 @@ package {
 
 	import core.AvatarMC;
 	import core.Game;
+	import core.World;
+
+	import data.Release;
+	import data.Version;
 
 	import ui.UpdateBanner;
 	import input.GamePad;
@@ -57,7 +61,7 @@ package {
 		private var backgroundContext:LoaderContext = createLoaderContext();
 		private var clientDomain:ApplicationDomain = new ApplicationDomain();
 		private var clientContext:LoaderContext = createLoaderContext();
-		private var gameMovieClip:MovieClip;
+		public var gameMovieClip:MovieClip;
 		private var titleFile:String;
 		private var backgroundFile:String;
 		private var loadState:int = STATE_BACKGROUND;
@@ -71,6 +75,7 @@ package {
 
 		public const avatarMCCore: AvatarMC = new AvatarMC(this);
 		public const gameCore: Game = new Game(this);
+		public const worldCore: World = new World(this);
 
 		public function Main() {
 			foregroundService = new ForegroundService();
@@ -247,13 +252,24 @@ package {
 
 			loadBinary(url,
 				function (bytes:ByteArray):void {
+					// Cleanup previous map loader to prevent memory leak
+					if (gameMovieClip != null && gameMovieClip.world != null) {
+						var oldLdr:Loader = gameMovieClip.world.ldr_map as Loader;
+						if (oldLdr != null) {
+							try { oldLdr.unloadAndStop(true); } catch (e:Error) {}
+						}
+					}
+
 					const ldr:Loader = new Loader();
 
 					if (gameMovieClip != null && gameMovieClip.world != null) {
 						gameMovieClip.world.ldr_map = ldr;
 					}
 
-					ldr.contentLoaderInfo.addEventListener(Event.COMPLETE, onComplete);
+					ldr.contentLoaderInfo.addEventListener(Event.COMPLETE, function(evt:Event):void {
+						ldr.contentLoaderInfo.removeEventListener(Event.COMPLETE, arguments.callee);
+						onComplete(evt);
+					});
 					ldr.loadBytes(bytes, context);
 				},
 				onProgress,
@@ -357,6 +373,8 @@ package {
 
 			gameMovieClip.addChild(new GamePad(gameMovieClip));
 
+			stage.addEventListener(Event.ENTER_FRAME, worldCore.onEnterFrame, false, 0, true);
+
 			BotController.init(gameMovieClip, stage);
 			log("Bot controller initialized");
 		}
@@ -377,14 +395,12 @@ package {
 
 		private function onUpdateCheckComplete(e:Event):void {
 			try {
-				const data:Object = JSON.parse(URLLoader(e.target).data);
-				const latestTag:String = data.tag_name;
-				const releaseUrl:String = data.html_url;
+				const release:Release = new Release(JSON.parse(URLLoader(e.target).data));
 
-				log("Latest release: " + latestTag + " (current: " + Config.APP_VERSION + ")");
+				log("Latest release: " + release.tag_name + " (current: " + Config.APP_VERSION + ")");
 
-				if (latestTag != Config.APP_VERSION) {
-					showUpdateBanner(latestTag, releaseUrl);
+				if (release.tag_name != Config.APP_VERSION) {
+					showUpdateBanner(release.tag_name, release.html_url);
 				}
 			} catch (err:Error) {
 				log("Update check failed: " + err.message);
@@ -393,9 +409,9 @@ package {
 
 		private function onVersionComplete(e:Event):void {
 			try {
-				const data:Object = JSON.parse(URLLoader(e.target).data);
-				titleFile = data.sTitle;
-				backgroundFile = data.sBG;
+				const version:Version = new Version(JSON.parse(URLLoader(e.target).data));
+				titleFile = version.sTitle;
+				backgroundFile = version.sBG;
 				log("Version fetched — title: " + titleFile + ", bg: " + backgroundFile);
 				advance();
 			} catch (err:Error) {
@@ -455,20 +471,39 @@ package {
 
 		private static function loadBinary(url:String, onBytes:Function, onProgress:Function = null, onError:Function = null):void {
 			const ul:URLLoader = new URLLoader();
-
 			ul.dataFormat = URLLoaderDataFormat.BINARY;
 
-			ul.addEventListener(Event.COMPLETE, function (e:Event):void {
-				onBytes(URLLoader(e.target).data as ByteArray);
-			});
+			var completeHandler:Function;
+			var errorHandler:Function;
 
+			var cleanup:Function = function():void {
+				ul.removeEventListener(Event.COMPLETE, completeHandler);
+				if (onProgress != null) {
+					ul.removeEventListener(ProgressEvent.PROGRESS, onProgress);
+				}
+				ul.removeEventListener(IOErrorEvent.IO_ERROR, errorHandler);
+				try { ul.close(); } catch (e:Error) {}
+				ul.data = null;
+			};
+
+			completeHandler = function(e:Event):void {
+				var bytes:ByteArray = URLLoader(e.target).data as ByteArray;
+				cleanup();
+				onBytes(bytes);
+			};
+
+			errorHandler = function(e:IOErrorEvent):void {
+				cleanup();
+				if (onError != null) {
+					onError(e);
+				}
+			};
+
+			ul.addEventListener(Event.COMPLETE, completeHandler);
 			if (onProgress != null) {
 				ul.addEventListener(ProgressEvent.PROGRESS, onProgress);
 			}
-
-			if (onError != null) {
-				ul.addEventListener(IOErrorEvent.IO_ERROR, onError);
-			}
+			ul.addEventListener(IOErrorEvent.IO_ERROR, errorHandler);
 
 			ul.load(new URLRequest(url));
 		}
@@ -477,12 +512,31 @@ package {
 			loadBinary(url,
 				function (bytes:ByteArray):void {
 					const ldr:Loader = new Loader();
-					ldr.contentLoaderInfo.addEventListener(Event.COMPLETE, onComplete);
+
+					var completeWrapper:Function;
+					var errorWrapper:Function;
+
+					var cleanupListeners:Function = function():void {
+						ldr.contentLoaderInfo.removeEventListener(Event.COMPLETE, completeWrapper);
+						if (errorWrapper != null) {
+							ldr.contentLoaderInfo.removeEventListener(IOErrorEvent.IO_ERROR, errorWrapper);
+						}
+					};
+
+					completeWrapper = function(e:Event):void {
+						cleanupListeners();
+						onComplete(e);
+					};
 
 					if (onError != null) {
-						ldr.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, onError);
+						errorWrapper = function(e:IOErrorEvent):void {
+							cleanupListeners();
+							onError(e);
+						};
+						ldr.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, errorWrapper);
 					}
 
+					ldr.contentLoaderInfo.addEventListener(Event.COMPLETE, completeWrapper);
 					ldr.loadBytes(bytes, context);
 				},
 				onProgress,
@@ -492,7 +546,13 @@ package {
 
 		private static function fetchJSON(url:String, onComplete:Function):void {
 			const ul:URLLoader = new URLLoader();
-			ul.addEventListener(Event.COMPLETE, onComplete);
+			var handler:Function = function(e:Event):void {
+				ul.removeEventListener(Event.COMPLETE, handler);
+				try { ul.close(); } catch (err:Error) {}
+				onComplete(e);
+				ul.data = null;
+			};
+			ul.addEventListener(Event.COMPLETE, handler);
 			ul.load(new URLRequest(url));
 		}
 	}
