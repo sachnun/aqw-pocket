@@ -14,6 +14,9 @@
 
 set -eu
 
+# Use pre-compiled class files if available, otherwise JEP 330 source execution
+_java() { _c="$1"; shift; if [ -f "/opt/java-tools/${_c}.class" ]; then java -cp /opt/java-tools "$_c" "$@"; else java "scripts/${_c}.java" "$@"; fi; }
+
 # ── Configuration (via environment with defaults) ──────────
 KEYSTORE_PATH="${KEYSTORE_PATH:-${KEYSTORE_FILE:-.signing/dev.p12}}"
 KEYSTORE_PASS="${KEYSTORE_PASS:-${KEYSTORE_PASSWORD:-devpass}}"
@@ -37,7 +40,7 @@ BUNDLE="build/AQWPocket-linux"
 # ── Step 1: Patch Game.swf ─────────────────────────────────
 if [ "$SKIP_PATCH" != "1" ]; then
   echo "[1/6] Patching latest Game.swf..."
-  java scripts/patch.java
+  _java patch
 else
   echo "[1/6] Skip patch (--skip-patch)"
 fi
@@ -89,7 +92,7 @@ cp "$RUNTIME/Adobe AIR/Versions/1.0/Resources/captiveappentry" "$BUNDLE/AQWPocke
 chmod +x "$BUNDLE/AQWPocket"
 
 # Patch AIR runtime license
-java scripts/tools.java patch-air-license \
+_java tools patch-air-license \
   "$BUNDLE/Adobe AIR/Versions/1.0/libCore.so"
 
 # ── Step 6: Create AppImage ────────────────────────────────

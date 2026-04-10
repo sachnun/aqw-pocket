@@ -17,6 +17,9 @@
 
 set -eu
 
+# Use pre-compiled class files if available, otherwise JEP 330 source execution
+_java() { _c="$1"; shift; if [ -f "/opt/java-tools/${_c}.class" ]; then java -cp /opt/java-tools "$_c" "$@"; else java "scripts/${_c}.java" "$@"; fi; }
+
 # ── Configuration (via environment with defaults) ──────────
 KEYSTORE_PATH="${KEYSTORE_PATH:-${KEYSTORE_FILE:-.signing/dev.p12}}"
 KEYSTORE_PASS="${KEYSTORE_PASS:-${KEYSTORE_PASSWORD:-devpass}}"
@@ -41,7 +44,7 @@ BUNDLE="build/AQWPocket"
 # ── Step 1: Patch Game.swf ─────────────────────────────────
 if [ "$SKIP_PATCH" != "1" ]; then
   echo "[1/7] Patching latest Game.swf..."
-  java scripts/patch.java
+  _java patch
 else
   echo "[1/7] Skip patch (--skip-patch)"
 fi
@@ -97,14 +100,14 @@ cp "$WIN_RUNTIME/Adobe AIR/Versions/1.0/Resources/CaptiveAppEntry.exe" "$BUNDLE/
 echo "[6/7] Patching AIR runtime..."
 WIN_DLL="$BUNDLE/Adobe AIR/Versions/1.0/Adobe AIR.dll"
 if [ -f "$WIN_DLL" ]; then
-  java scripts/tools.java patch-air-license "$WIN_DLL"
+  _java tools patch-air-license "$WIN_DLL"
 else
   echo "Warning: Adobe AIR.dll not found at expected path, searching..."
   DLL_FOUND=0
   for dll in "$BUNDLE/Adobe AIR/Versions/1.0/"*.dll "$BUNDLE/Adobe AIR/"*.dll; do
     if [ -f "$dll" ]; then
       echo "Trying to patch: $dll"
-      if java scripts/tools.java patch-air-license "$dll" 2>/dev/null; then
+      if _java tools patch-air-license "$dll" 2>/dev/null; then
         DLL_FOUND=1
         break
       fi

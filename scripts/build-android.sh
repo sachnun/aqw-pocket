@@ -6,9 +6,7 @@
 #
 # Targets:
 #   --target apk-armv7   Build armv7 APK
-#   --target apk-armv8   Build armv8 APK
-#   --target aab         Build AAB
-#   --target universal   AAB -> normalize -> universal APK (default)
+#   --target apk-armv8   Build armv8 APK (default)
 #
 # Options:
 #   --output NAME        Output filename (placed under build/)
@@ -23,6 +21,9 @@
 
 set -eu
 
+# Use pre-compiled class files if available, otherwise JEP 330 source execution
+_java() { _c="$1"; shift; if [ -f "/opt/java-tools/${_c}.class" ]; then java -cp /opt/java-tools "$_c" "$@"; else java "scripts/${_c}.java" "$@"; fi; }
+
 # ── Configuration (via environment with defaults) ──────────
 KEYSTORE_PATH="${KEYSTORE_PATH:-${KEYSTORE_FILE:-.signing/dev.jks}}"
 KEY_ALIAS="${KEY_ALIAS:-${KEYSTORE_ALIAS:-dev}}"
@@ -30,7 +31,7 @@ KEYSTORE_PASS="${KEYSTORE_PASS:-${KEYSTORE_PASSWORD:-devpass}}"
 KEY_PASS="${KEY_PASS:-${KEY_PASSWORD:-${KEYSTORE_PASS}}}"
 
 # ── Parse arguments ────────────────────────────────────────
-TARGET="universal"
+TARGET="apk-armv8"
 OUTPUT=""
 SKIP_PATCH=0
 SKIP_ANE=0
@@ -50,7 +51,7 @@ ICONS="icons/android-icon-36x36.png icons/android-icon-48x48.png icons/android-i
 # ── Step 1: Patch Game.swf ─────────────────────────────────
 if [ "$SKIP_PATCH" != "1" ]; then
   echo "[1/5] Patching latest Game.swf..."
-  java scripts/patch.java
+  _java patch
 else
   echo "[1/5] Skip patch (--skip-patch)"
 fi
@@ -73,7 +74,7 @@ if [ "$SKIP_ANE" != "1" ]; then
     -cp "$ANDROID_JAR:$AIR_HOME/lib/android/FlashRuntimeExtensions.jar" \
     -d ane/build/android/classes ane/android/src/com/aqw/foreground/*.java
   jar cf ane/build/foreground-ext.jar -C ane/build/android/classes .
-  java scripts/tools.java extract-library-swf \
+  _java tools extract-library-swf \
     ane/build/foreground.swc ane/build/android-dist/library.swf
   cp ane/build/foreground-ext.jar ane/build/android-dist/foreground-ext.jar
   cp ane/extension.xml ane/build/extension.xml
@@ -123,36 +124,6 @@ case "$TARGET" in
       "build/${OUTPUT:-AQWPocket-armv8.apk}" app/app.xml -extdir app/extensions \
       -C app Loader.swf $ICONS gamefiles/Game.swf
     echo "Done. APK: build/${OUTPUT:-AQWPocket-armv8.apk}"
-    ;;
-  aab)
-    echo "[5/5] Building AAB..."
-    adt -package -target aab \
-      -storetype JKS -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
-      "build/${OUTPUT:-AQWPocket.aab}" app/app.xml -extdir app/extensions \
-      -C app Loader.swf $ICONS gamefiles/Game.swf \
-      -platformsdk "$ANDROID_SDK_ROOT"
-    echo "Done. AAB: build/${OUTPUT:-AQWPocket.aab}"
-    ;;
-  universal)
-    APK_NAME="${OUTPUT:-AQWPocket-universal.apk}"
-    echo "[5/5] Building AAB..."
-    adt -package -target aab \
-      -storetype JKS -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
-      build/AQWPocket.aab app/app.xml -extdir app/extensions \
-      -C app Loader.swf $ICONS gamefiles/Game.swf \
-      -platformsdk "$ANDROID_SDK_ROOT"
-    echo "Normalizing AAB..."
-    java scripts/tools.java normalize-aab \
-      build/AQWPocket.aab build/AQWPocket-normalized.aab
-    java -jar "$BUNDLETOOL_JAR" build-apks \
-      --bundle=build/AQWPocket-normalized.aab --output=build/AQWPocket.apks \
-      --mode=universal \
-      --ks="$KEYSTORE_PATH" --ks-key-alias="$KEY_ALIAS" \
-      --ks-pass=pass:"$KEYSTORE_PASS" --key-pass=pass:"$KEY_PASS"
-    unzip -p build/AQWPocket.apks universal.apk > "build/$APK_NAME"
-    rm -f build/AQWPocket.aab build/AQWPocket.apks build/AQWPocket-normalized.aab
-    java scripts/tools.java inspect-native-libs "build/$APK_NAME"
-    echo "Done. Universal APK: build/$APK_NAME"
     ;;
   *)
     echo "Unknown target: $TARGET" >&2

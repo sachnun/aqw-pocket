@@ -12,20 +12,22 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class patch {
+    record Patch(String name, String find, String replace) {}
+
     public static void main(String[] args) throws Exception {
         clearAssetDir();
         downloadAsset();
         exportBytecode();
-        Map<String, String> patches = loadPatch(Paths.get("patches"));
+        List<Patch> patches = loadPatch(Paths.get("patches"));
         applyPatch(patches, Paths.get("assets", "Game-0"));
         build();
     }
@@ -120,8 +122,8 @@ public class patch {
 
     private static final String PATCH_SEPARATOR = "--- replace";
 
-    private static Map<String, String> loadPatch(Path path) throws IOException {
-        Map<String, String> patches = new TreeMap<>();
+    private static List<Patch> loadPatch(Path path) throws IOException {
+        List<Patch> patches = new ArrayList<>();
         if (!Files.exists(path)) {
             return patches;
         }
@@ -148,17 +150,21 @@ public class patch {
                     continue;
                 }
 
-                patches.put(findContent, replaceContent);
+                String name = path.relativize(file).toString();
+                patches.add(new Patch(name, findContent, replaceContent));
             }
         }
 
+        System.out.println("Loaded " + patches.size() + " patches");
         return patches;
     }
 
-    private static void applyPatch(Map<String, String> patches, Path path) throws IOException {
+    private static void applyPatch(List<Patch> patches, Path path) throws IOException {
         if (!Files.exists(path)) {
             return;
         }
+
+        Set<String> matched = new HashSet<>();
 
         try (Stream<Path> stream = Files.walk(path)) {
             List<Path> files = stream
@@ -169,11 +175,8 @@ public class patch {
             for (Path file : files) {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
 
-                for (Map.Entry<String, String> patch : patches.entrySet()) {
-                    String find = patch.getKey();
-                    String replace = patch.getValue();
-
-                    String findNormalized = normalize(find);
+                for (Patch patch : patches) {
+                    String findNormalized = normalize(patch.find());
                     String contentNormalized = normalize(content);
 
                     if (!contentNormalized.contains(findNormalized)) {
@@ -185,13 +188,20 @@ public class patch {
                         continue;
                     }
 
-                    System.out.println("Applying patch to " + file);
+                    matched.add(patch.name());
+                    System.out.println("Applying " + patch.name() + " -> " + file);
                     for (String original : blocks) {
-                        content = content.replaceFirst(Pattern.quote(original), Matcher.quoteReplacement(replace));
+                        content = content.replaceFirst(Pattern.quote(original), Matcher.quoteReplacement(patch.replace()));
                     }
 
                     Files.writeString(file, content, StandardCharsets.UTF_8);
                 }
+            }
+        }
+
+        for (Patch patch : patches) {
+            if (!matched.contains(patch.name())) {
+                System.out.println("UNMATCHED: " + patch.name());
             }
         }
     }
