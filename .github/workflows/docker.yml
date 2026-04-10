@@ -17,11 +17,14 @@ env:
 
 jobs:
   build-and-push:
-    name: Build & Push Image
+    name: Build & Push (${{ matrix.target }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        target: [android, linux, windows]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,17 +45,18 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=build
-            type=sha,prefix=build-
+            type=raw,value=build-${{ matrix.target }}
+            type=sha,prefix=build-${{ matrix.target }}-
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          target: ${{ matrix.target }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=build-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=build-${{ matrix.target }}
           build-args: |
             CACHE_BUST=${{ hashFiles('Dockerfile') }}
