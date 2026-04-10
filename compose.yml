@@ -1,6 +1,6 @@
 services:
   build:
-    image: ${BUILD_IMAGE:-ghcr.io/sachnun/aqw-pocket:build}
+    image: ${BUILD_IMAGE:-ghcr.io/sachnun/aqw-pocket:build-android}
     volumes:
       - .:/workspace
     working_dir: /workspace
