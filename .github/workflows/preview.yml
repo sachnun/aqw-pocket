@@ -12,9 +12,6 @@ concurrency:
   group: pr-preview-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
   cancel-in-progress: true
 
-env:
-  BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build
-
 jobs:
   prepare:
     name: Prepare Preview Metadata
@@ -76,6 +73,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-android
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -134,6 +133,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-linux
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -169,6 +170,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-windows
     steps:
       - name: Checkout
         uses: actions/checkout@v6

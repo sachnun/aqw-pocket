@@ -22,9 +22,6 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build
-
 jobs:
   prepare:
     name: Prepare Metadata
@@ -81,6 +78,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-android
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       apk_name: ${{ steps.meta.outputs.apk_name }}
@@ -142,6 +141,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-linux
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       appimage_name: ${{ steps.meta.outputs.appimage_name }}
@@ -207,6 +208,8 @@ jobs:
     needs: prepare
     permissions:
       contents: read
+    env:
+      BUILD_IMAGE: ghcr.io/sachnun/aqw-pocket:build-windows
     outputs:
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
       exe_name: ${{ steps.meta.outputs.exe_name }}
