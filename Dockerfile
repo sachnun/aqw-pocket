@@ -56,8 +56,9 @@ RUN rm -rf \
         /opt/air_sdk/bin/swfencrypt /opt/air_sdk/bin/configure_linux.sh \
         /opt/air_sdk/*.pdf /opt/air_sdk/*.txt && \
     cp -a /opt/air_sdk/lib /opt/air_sdk_lib_noandroid && \
-    rm -rf /opt/air_sdk_lib_noandroid/android \
-           /opt/air_sdk_lib_noandroid/FlashRuntimeExtensions*
+    find /opt/air_sdk_lib_noandroid/android -type f ! -name '*.jar' -delete && \
+    find /opt/air_sdk_lib_noandroid/android -type d -empty -delete && \
+    rm -f /opt/air_sdk_lib_noandroid/FlashRuntimeExtensions*
 
 # ============================================================
 # Stage 2: Extract android.jar (needs Java for sdkmanager)

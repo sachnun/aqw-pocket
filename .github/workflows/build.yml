@@ -181,13 +181,11 @@ jobs:
         run: |
           if [ -f .signing/release.p12 ] && [ -n "$AIR_KEYSTORE_PASSWORD" ]; then
             make build-linux \
-              DOCKER_RUN_ARGS=--privileged \
               LINUX_OUTPUT="${{ steps.meta.outputs.appimage_name }}" \
               KEYSTORE_PATH=/workspace/.signing/release.p12 \
               KEYSTORE_PASS="$AIR_KEYSTORE_PASSWORD"
           else
             make build-linux \
-              DOCKER_RUN_ARGS=--privileged \
               LINUX_OUTPUT="${{ steps.meta.outputs.appimage_name }}"
           fi
 

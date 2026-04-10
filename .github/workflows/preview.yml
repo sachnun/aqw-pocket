@@ -152,7 +152,6 @@ jobs:
       - name: Build Linux AppImage
         run: |
           make build-linux \
-            DOCKER_RUN_ARGS=--privileged \
             LINUX_OUTPUT="${{ needs.prepare.outputs.linux_appimage_name }}"
 
       - name: Upload Linux AppImage artifact
