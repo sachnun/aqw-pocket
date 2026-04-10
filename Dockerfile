@@ -60,15 +60,7 @@ RUN rm -rf \
            /opt/air_sdk_lib_noandroid/FlashRuntimeExtensions*
 
 # ============================================================
-# Stage 2: Pre-compile Java tools (for JRE-only targets)
-# ============================================================
-FROM eclipse-temurin:17-jdk-jammy AS java-tools
-
-COPY scripts/patch.java scripts/tools.java /tmp/src/
-RUN javac -d /opt/java-tools /tmp/src/patch.java /tmp/src/tools.java
-
-# ============================================================
-# Stage 3: Extract android.jar (needs Java for sdkmanager)
+# Stage 2: Extract android.jar (needs Java for sdkmanager)
 # ============================================================
 FROM eclipse-temurin:17-jre-jammy AS android-jar
 
@@ -86,19 +78,31 @@ RUN apt-get update -qq && \
     rm -rf /opt/android-sdk/cmdline-tools /tmp/cmdline-tools.zip
 
 # ============================================================
-# Stage 4: Android build environment (JDK — needs javac/jar)
+# Stage 3: Pre-compile Java tools + ANE jar (for JRE targets)
 # ============================================================
-FROM ubuntu:22.04 AS android
+FROM eclipse-temurin:17-jdk-jammy AS java-tools
+
+COPY scripts/patch.java scripts/tools.java /tmp/src/
+RUN javac -d /opt/java-tools /tmp/src/patch.java /tmp/src/tools.java
+
+COPY --from=android-jar /opt/android-sdk/platforms/android-34/android.jar /tmp/ane-deps/android.jar
+COPY --from=builder /opt/air_sdk/lib/android/FlashRuntimeExtensions.jar /tmp/ane-deps/FlashRuntimeExtensions.jar
+COPY ane/android/src /tmp/ane-src/
+RUN javac --release 8 \
+        -cp "/tmp/ane-deps/android.jar:/tmp/ane-deps/FlashRuntimeExtensions.jar" \
+        -d /tmp/ane-classes \
+        /tmp/ane-src/com/aqw/foreground/*.java && \
+    jar cf /opt/java-tools/foreground-ext.jar -C /tmp/ane-classes .
+
+# ============================================================
+# Stage 4: Android build environment (JRE — ANE pre-compiled)
+# ============================================================
+FROM eclipse-temurin:17-jre-jammy AS android
 
 LABEL org.opencontainers.image.description="AQW Pocket Android build environment"
 LABEL org.opencontainers.image.source="https://github.com/sachnun/aqw-pocket"
 
 ARG CACHE_BUST=default
-
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-        openjdk-17-jdk-headless ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/bin/unzip            /usr/bin/
 COPY --from=builder /usr/local/bin/jq         /usr/local/bin/
@@ -114,10 +118,9 @@ COPY --from=builder /opt/air_sdk/runtimes/air/android   /opt/air_sdk/runtimes/ai
 COPY --from=builder /opt/air_sdk/air-sdk-description.xml /opt/air_sdk/air-sdk-description.xml
 COPY --from=builder /opt/air_sdk/airsdk.xml             /opt/air_sdk/airsdk.xml
 
-COPY --from=android-jar /opt/android-sdk/platforms /opt/android-sdk/platforms
+COPY --from=java-tools /opt/java-tools /opt/java-tools
 
 ENV AIR_HOME=/opt/air_sdk
-ENV ANDROID_JAR=/opt/android-sdk/platforms/android-34/android.jar
 ENV PATH="${AIR_HOME}/bin:${PATH}"
 
 WORKDIR /workspace
