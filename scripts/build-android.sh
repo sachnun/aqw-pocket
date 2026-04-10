@@ -70,10 +70,14 @@ if [ "$SKIP_ANE" != "1" ]; then
   cp app/src/core/ForegroundService.as ane/build/as3/core/ForegroundService.as
   compc -source-path ane/build/as3 -include-classes core.ForegroundService \
     -swf-version=23 -output ane/build/foreground.swc
-  javac --release 8 \
-    -cp "$ANDROID_JAR:$AIR_HOME/lib/android/FlashRuntimeExtensions.jar" \
-    -d ane/build/android/classes ane/android/src/com/aqw/foreground/*.java
-  jar cf ane/build/foreground-ext.jar -C ane/build/android/classes .
+  if [ -f /opt/java-tools/foreground-ext.jar ]; then
+    cp /opt/java-tools/foreground-ext.jar ane/build/foreground-ext.jar
+  else
+    javac --release 8 \
+      -cp "$ANDROID_JAR:$AIR_HOME/lib/android/FlashRuntimeExtensions.jar" \
+      -d ane/build/android/classes ane/android/src/com/aqw/foreground/*.java
+    jar cf ane/build/foreground-ext.jar -C ane/build/android/classes .
+  fi
   _java tools extract-library-swf \
     ane/build/foreground.swc ane/build/android-dist/library.swf
   cp ane/build/foreground-ext.jar ane/build/android-dist/foreground-ext.jar
